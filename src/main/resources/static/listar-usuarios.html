@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Listado de Usuarios</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 30px 20px; }
+        .contenedor { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 950px; margin: 0 auto; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        .barra { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+        select, input { padding: 9px; border: 1px solid #ccc; border-radius: 5px; }
+        input#valorBusqueda { flex: 1; min-width: 180px; }
+        button { padding: 9px 16px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #2c5282; }
+        button.limpiar { background: #718096; }
+        button.limpiar:hover { background: #4a5568; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        th { background: #f7fafc; color: #4a5568; }
+        .badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; }
+        .activo { background: #2f855a; }
+        .inactivo { background: #a0aec0; }
+        .acciones button { padding: 5px 10px; font-size: 12px; margin-right: 5px; }
+        .btn-editar { background: #2b6cb0; }
+        .btn-eliminar { background: #dd6b20; }
+        .btn-eliminar:hover { background: #c05621; }
+        #vacio { text-align: center; color: #c53030; font-weight: bold; margin-top: 20px; display: none; }
+        .paginacion { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; font-size: 13px; color: #4a5568; }
+        .paginacion select { padding: 5px; }
+        .paginacion .botones button { padding: 5px 10px; margin: 0 3px; }
+        a.enlace { display: block; text-align: center; margin-top: 20px; color: #2b6cb0; text-decoration: none; font-size: 13px; }
+
+        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 10; }
+        .modal { background: white; padding: 25px; border-radius: 10px; width: 340px; }
+        .modal h3 { color: #c53030; margin-top: 0; }
+        .modal-botones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .modal-botones button.cancelar { background: white; color: #2b6cb0; border: 1px solid #2b6cb0; }
+        .modal-botones button.confirmar { background: #c53030; }
+        .modal-botones button.confirmar:hover { background: #9b2c2c; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Listado de Usuarios</h2>
+
+    <div class="barra">
+        <select id="campoFiltro">
+            <option value="ID">ID</option>
+            <option value="NOMBRE">Nombre</option>
+            <option value="CORREO">Correo Electrónico</option>
+            <option value="ROL">Rol</option>
+            <option value="USERNAME">Nombre de Usuario</option>
+            <option value="DPI">DPI</option>
+        </select>
+        <input type="text" id="valorBusqueda" placeholder="Buscar...">
+        <button onclick="buscar()">🔍 Buscar</button>
+        <button class="limpiar" onclick="limpiarBusqueda()">Limpiar</button>
+    </div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Usuario</th><th>Estado</th><th>Acciones</th>
+        </tr>
+        </thead>
+        <tbody id="tablaBody"></tbody>
+    </table>
+
+    <div id="vacio">No se encontraron datos usuarios.</div>
+
+    <div class="paginacion">
+        <div>
+            Elementos por página:
+            <select id="elementosPorPagina" onchange="renderizarPagina()">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
+            — <span id="conteoRegistros"></span>
+        </div>
+        <div class="botones">
+            <button onclick="paginaAnterior()">‹ Anterior</button>
+            <span id="numeroPagina">1</span>
+            <button onclick="paginaSiguiente()">Siguiente ›</button>
+        </div>
+    </div>
+
+    <a href="/menu.html" class="enlace">Volver al menú</a>
+</div>
+
+<div class="overlay" id="overlayEliminar">
+    <div class="modal">
+        <h3>⚠ Confirmar eliminación</h3>
+        <p>¿Está seguro que desea eliminar el usuario "<span id="nombreAEliminar"></span>"? Esta acción no se puede deshacer.</p>
+        <div class="modal-botones">
+            <button class="cancelar" onclick="cerrarModalEliminar()">Cancelar</button>
+            <button class="confirmar" onclick="confirmarEliminar()">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let todosLosUsuarios = [];
+    let usuariosFiltrados = [];
+    let paginaActual = 1;
+    let idAEliminar = null;
+
+    async function cargarUsuarios() {
+        todosLosUsuarios = await fetch('/api/usuarios').then(r => r.json());
+        usuariosFiltrados = todosLosUsuarios;
+        paginaActual = 1;
+        renderizarPagina();
+    }
+
+    async function buscar() {
+        const campo = document.getElementById('campoFiltro').value;
+        const valor = document.getElementById('valorBusqueda').value.trim();
+
+        if (!valor) {
+            usuariosFiltrados = todosLosUsuarios;
+        } else {
+            usuariosFiltrados = await fetch(`/api/usuarios/buscar?campo=${campo}&valor=${encodeURIComponent(valor)}`).then(r => r.json());
+        }
+        paginaActual = 1;
+        renderizarPagina();
+    }
+
+    function limpiarBusqueda() {
+        document.getElementById('valorBusqueda').value = '';
+        usuariosFiltrados = todosLosUsuarios;
+        paginaActual = 1;
+        renderizarPagina();
+    }
+
+    function renderizarPagina() {
+        const tbody = document.getElementById('tablaBody');
+        const vacio = document.getElementById('vacio');
+        tbody.innerHTML = '';
+
+        if (usuariosFiltrados.length === 0) {
+            vacio.style.display = 'block';
+            document.getElementById('conteoRegistros').textContent = '0 registros';
+            document.getElementById('numeroPagina').textContent = '1';
+            return;
+        }
+        vacio.style.display = 'none';
+
+        const porPagina = parseInt(document.getElementById('elementosPorPagina').value);
+        const totalPaginas = Math.max(1, Math.ceil(usuariosFiltrados.length / porPagina));
+        if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+
+        const inicio = (paginaActual - 1) * porPagina;
+        const pagina = usuariosFiltrados.slice(inicio, inicio + porPagina);
+
+        pagina.forEach(u => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+      <td>${u.id}</td>
+      <td>${u.nombreCompleto}</td>
+      <td>${u.correo}</td>
+      <td>${u.rol}</td>
+      <td>${u.username}</td>
+      <td><span class="badge ${u.activo ? 'activo' : 'inactivo'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
+      <td class="acciones">
+        <button class="btn-editar" onclick="editarUsuario(${u.id})">Editar</button>
+        <button class="btn-eliminar" onclick="abrirModalEliminar(${u.id}, '${u.username}')">Eliminar</button>
+      </td>
+    `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('conteoRegistros').textContent = `${usuariosFiltrados.length} registro(s)`;
+        document.getElementById('numeroPagina').textContent = `Página ${paginaActual} de ${totalPaginas}`;
+    }
+
+    function paginaAnterior() {
+        if (paginaActual > 1) { paginaActual--; renderizarPagina(); }
+    }
+    function paginaSiguiente() {
+        const porPagina = parseInt(document.getElementById('elementosPorPagina').value);
+        const totalPaginas = Math.max(1, Math.ceil(usuariosFiltrados.length / porPagina));
+        if (paginaActual < totalPaginas) { paginaActual++; renderizarPagina(); }
+    }
+
+    function editarUsuario(id) {
+        window.location.href = `/editar-usuario.html?id=${id}`;
+    }
+
+    function abrirModalEliminar(id, username) {
+        idAEliminar = id;
+        document.getElementById('nombreAEliminar').textContent = username;
+        document.getElementById('overlayEliminar').style.display = 'flex';
+    }
+    function cerrarModalEliminar() {
+        document.getElementById('overlayEliminar').style.display = 'none';
+        idAEliminar = null;
+    }
+
+    async function confirmarEliminar() {
+        if (!idAEliminar) return;
+        try {
+            const respuesta = await fetch(`/api/usuarios/${idAEliminar}`, { method: 'DELETE' });
+            if (respuesta.ok) {
+                cerrarModalEliminar();
+                cargarUsuarios();
+            }
+        } catch (error) {
+            alert('No se pudo conectar con el servidor.');
+        }
+    }
+
+    cargarUsuarios();
+</script>
+</body>
+</html>
