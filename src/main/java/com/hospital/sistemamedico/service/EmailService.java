@@ -24,4 +24,24 @@ public class EmailService {
             System.err.println("No se pudo enviar el correo de bienvenida: " + e.getMessage());
         }
     }
+    public void enviarComprobantePago(String correoDestino, String nombrePaciente, String numeroTransaccion,
+                                      String monto, String nombreMedico, String especialidad, String sucursal, String fechaHora) {
+        try {
+            SimpleMailMessage mensaje = new SimpleMailMessage();
+            mensaje.setTo(correoDestino);
+            mensaje.setSubject("Comprobante de Pago - Cita Médica - Hospital Sistema Médico");
+            mensaje.setText("Estimado(a) " + nombrePaciente + ",\n\n"
+                    + "Su pago ha sido procesado exitosamente. Detalle del comprobante:\n\n"
+                    + "Número de transacción: " + numeroTransaccion + "\n"
+                    + "Monto pagado: Q" + monto + "\n"
+                    + "Médico: " + nombreMedico + "\n"
+                    + "Especialidad: " + especialidad + "\n"
+                    + "Sucursal: " + sucursal + "\n"
+                    + "Fecha y hora de la cita: " + fechaHora + "\n\n"
+                    + "Gracias por confiar en nuestro hospital.");
+            mailSender.send(mensaje);
+        } catch (Exception e) {
+            System.err.println("No se pudo enviar el comprobante de pago: " + e.getMessage());
+        }
+    }
 }
