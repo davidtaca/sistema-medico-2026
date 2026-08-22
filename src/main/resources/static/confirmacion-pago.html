@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>¡Pago Exitoso!</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 380px; text-align: center; }
+        .icono { font-size: 48px; color: #2f855a; }
+        h2 { color: #2f855a; margin: 10px 0; }
+        .comprobante { border: 2px dashed #2b6cb0; border-radius: 8px; padding: 15px; margin-top: 15px; background: #f7fafc; text-align: left; font-size: 14px; }
+        .comprobante p { margin: 5px 0; }
+        .comprobante strong { color: #2b6cb0; }
+        .aviso-correo { font-size: 12px; color: #718096; margin-top: 15px; }
+        .botones { display: flex; gap: 10px; margin-top: 25px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        button.primario { background: #2b6cb0; color: white; }
+        button.primario:hover { background: #2c5282; }
+        button.secundario { background: white; color: #2b6cb0; border: 1px solid #2b6cb0; }
+        button.secundario:hover { background: #ebf8ff; }
+    </style>
+</head>
+<body>
+<div class="caja">
+    <div class="icono">✅</div>
+    <h2>¡Pago Exitoso!</h2>
+
+    <div class="comprobante" id="comprobante">Cargando comprobante...</div>
+
+    <div class="aviso-correo">📧 Se ha enviado un correo de confirmación a su dirección de email registrada.</div>
+
+    <div class="botones">
+        <button class="secundario" onclick="window.location.href='/menu.html'">Volver al Portal</button>
+        <button class="primario" onclick="window.location.href='/mis-citas.html'">Ver Mis Citas</button>
+    </div>
+</div>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const pagoId = params.get('pagoId');
+
+    async function cargarComprobante() {
+        if (!pagoId) {
+            document.getElementById('comprobante').textContent = 'No se encontró información del pago.';
+            return;
+        }
+
+        try {
+            const pago = await fetch(`/api/pagos/${pagoId}`).then(r => r.json());
+            const cita = pago.cita;
+            const fechaCita = new Date(cita.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+            const fechaPago = new Date(pago.fechaPago).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+
+            document.getElementById('comprobante').innerHTML = `
+      <p><strong>No. Transacción:</strong> ${pago.numeroTransaccion}</p>
+      <p><strong>Monto pagado:</strong> Q${pago.monto}</p>
+      <p><strong>Fecha de pago:</strong> ${fechaPago}</p>
+      <hr>
+      <p><strong>Médico:</strong> ${cita.medico.nombreCompleto}</p>
+      <p><strong>Especialidad:</strong> ${cita.especialidad.nombre}</p>
+      <p><strong>Sucursal:</strong> ${cita.sucursal.nombre}</p>
+      <p><strong>Fecha de la cita:</strong> ${fechaCita}</p>
+    `;
+        } catch (error) {
+            document.getElementById('comprobante').textContent = 'No se pudo cargar el comprobante.';
+        }
+    }
+
+    cargarComprobante();
+</script>
+</body>
+</html>
