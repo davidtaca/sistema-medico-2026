@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Menú Principal</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 40px 20px; }
+        .encabezado { text-align: center; margin-bottom: 30px; }
+        .encabezado h2 { color: #2b6cb0; margin-bottom: 5px; }
+        .encabezado p { color: #718096; font-size: 14px; }
+        .grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; max-width: 700px; margin: 0 auto; }
+        .tarjeta { background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 25px; width: 200px; text-align: center; cursor: pointer; text-decoration: none; color: #333; transition: transform 0.15s; }
+        .tarjeta:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+        .tarjeta .icono { font-size: 32px; margin-bottom: 10px; }
+        .tarjeta .titulo { font-weight: bold; color: #2b6cb0; margin-bottom: 5px; }
+        .tarjeta .desc { font-size: 12px; color: #718096; }
+        #salir { display: block; text-align: center; margin-top: 30px; color: #c53030; text-decoration: none; font-size: 14px; }
+    </style>
+</head>
+<body>
+<div class="encabezado">
+    <h2>Menú Principal</h2>
+    <p id="saludo"></p>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<a href="#" id="salir" onclick="cerrarSesion()">Cerrar Sesión</a>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+
+    if (!usuario) {
+        window.location.href = '/index.html';
+    }
+
+    document.getElementById('saludo').textContent = `${usuario.nombreCompleto} — ${usuario.rol}`;
+
+    const opciones = {
+        ADMINISTRADOR: [
+            { titulo: 'Recepción', desc: 'Verificar llegada de pacientes', icono: '🩺', url: '/recepcion.html' },
+            { titulo: 'Caja', desc: 'Cobro de consultas', icono: '💳', url: '/caja.html' },
+            { titulo: 'Enfermería', desc: 'Toma de signos vitales', icono: '🌡️', url: '/enfermeria.html' },
+            { titulo: 'Gestión de Usuarios', desc: 'Crear médicos, enfermeras y personal', icono: '👥', url: '/usuarios.html' },
+        ],
+        RECEPCIONISTA: [
+            { titulo: 'Recepción', desc: 'Verificar llegada de pacientes', icono: '🩺', url: '/recepcion.html' },
+        ],
+        CAJERO: [
+            { titulo: 'Caja', desc: 'Cobro de consultas', icono: '💳', url: '/caja.html' },
+        ],
+        ENFERMERO: [
+            { titulo: 'Enfermería', desc: 'Toma de signos vitales', icono: '🌡️', url: '/enfermeria.html' },
+        ],
+        MEDICO: [],
+        PACIENTE: [
+            { titulo: 'Agendar Cita', desc: 'Reservar una nueva consulta', icono: '📅', url: '/cita.html' },
+            { titulo: 'Mis Citas', desc: 'Ver mis citas y pagar', icono: '📋', url: '/mis-citas.html' },
+        ]
+    };
+
+    const grid = document.getElementById('grid');
+    const disponibles = opciones[usuario.rol] || [];
+
+    if (disponibles.length === 0) {
+        grid.innerHTML = '<p style="color:#718096;">No hay opciones disponibles para su rol todavía.</p>';
+    }
+
+    disponibles.forEach(op => {
+        const a = document.createElement('a');
+        a.className = 'tarjeta';
+        a.href = op.url;
+        a.innerHTML = `<div class="icono">${op.icono}</div><div class="titulo">${op.titulo}</div><div class="desc">${op.desc}</div>`;
+        grid.appendChild(a);
+    });
+
+    function cerrarSesion() {
+        sessionStorage.removeItem('usuarioActual');
+        window.location.href = '/index.html';
+    }
+</script>
+</body>
+</html>

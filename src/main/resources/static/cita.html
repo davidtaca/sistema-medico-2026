@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Agendar Cita</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 400px; }
+        h2 { text-align: center; color: #2b6cb0; }
+        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+        select, input, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-family: inherit; }
+        button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        button:hover { background: #2c5282; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; }
+        .exito { color: #2f855a; }
+        .checkbox { display: flex; align-items: center; margin-top: 15px; }
+        .checkbox input { width: auto; margin-right: 8px; }
+    </style>
+</head>
+<body>
+<div class="caja">
+    <h2>Agendar Cita</h2>
+
+    <label for="sucursal">Sucursal</label>
+    <select id="sucursal"><option value="">Seleccione...</option></select>
+
+    <label for="especialidad">Especialidad</label>
+    <select id="especialidad"><option value="">Seleccione...</option></select>
+
+    <label for="medico">Médico</label>
+    <select id="medico"><option value="">Seleccione...</option></select>
+
+    <label for="fechaHora">Fecha y hora</label>
+    <input type="datetime-local" id="fechaHora">
+
+    <label for="motivo">Motivo de la consulta</label>
+    <textarea id="motivo" rows="3"></textarea>
+
+    <div class="checkbox">
+        <input type="checkbox" id="emergencia">
+        <label for="emergencia" style="margin:0;">Es una emergencia</label>
+    </div>
+
+    <button onclick="agendar()">Agendar Cita</button>
+    <div id="mensaje"></div>
+</div>
+
+<script>
+    let medicos = [];
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+
+    if (!usuario || usuario.rol !== 'PACIENTE') {
+        alert('Debe iniciar sesión como paciente para agendar una cita.');
+        window.location.href = '/index.html';
+    }
+
+    async function cargarListas() {
+        const sucursales = await fetch('/api/sucursales/activas').then(r => r.json());
+        const especialidades = await fetch('/api/especialidades/activas').then(r => r.json());
+        medicos = await fetch('/api/usuarios/rol/MEDICO').then(r => r.json());
+
+        const selectSucursal = document.getElementById('sucursal');
+        sucursales.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.nombre;
+            selectSucursal.appendChild(opt);
+        });
+
+        const selectEspecialidad = document.getElementById('especialidad');
+        especialidades.forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.nombre;
+            selectEspecialidad.appendChild(opt);
+        });
+
+        filtrarMedicos();
+    }
+
+    function filtrarMedicos() {
+        const sucursalId = document.getElementById('sucursal').value;
+        const especialidadId = document.getElementById('especialidad').value;
+        const selectMedico = document.getElementById('medico');
+        selectMedico.innerHTML = '<option value="">Seleccione...</option>';
+
+        medicos
+            .filter(m => (!sucursalId || (m.sucursal && m.sucursal.id == sucursalId))
+                && (!especialidadId || (m.especialidad && m.especialidad.id == especialidadId)))
+            .forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.nombreCompleto;
+                selectMedico.appendChild(opt);
+            });
+    }
+
+    document.getElementById('sucursal').addEventListener('change', filtrarMedicos);
+    document.getElementById('especialidad').addEventListener('change', filtrarMedicos);
+
+    async function agendar() {
+        const mensaje = document.getElementById('mensaje');
+        mensaje.textContent = '';
+        mensaje.className = '';
+
+        const datos = {
+            pacienteId: usuario.id,
+            medicoId: document.getElementById('medico').value,
+            sucursalId: document.getElementById('sucursal').value,
+            especialidadId: document.getElementById('especialidad').value,
+            fechaHora: document.getElementById('fechaHora').value,
+            motivoConsulta: document.getElementById('motivo').value,
+            emergencia: document.getElementById('emergencia').checked
+        };
+
+        if (!datos.medicoId || !datos.sucursalId || !datos.especialidadId || !datos.fechaHora) {
+            mensaje.textContent = 'Complete todos los campos requeridos.';
+            mensaje.className = 'error';
+            return;
+        }
+
+        try {
+            const respuesta = await fetch('/api/citas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            });
+            const resultado = await respuesta.json();
+
+            if (!respuesta.ok) {
+                mensaje.textContent = resultado.error || 'No se pudo agendar la cita.';
+                mensaje.className = 'error';
+                return;
+            }
+
+            mensaje.textContent = 'Cita agendada con éxito. Estado: Pendiente de pago.';
+            mensaje.className = 'exito';
+
+        } catch (error) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.className = 'error';
+        }
+    }
+
+    cargarListas();
+</script>
+</body>
+</html>

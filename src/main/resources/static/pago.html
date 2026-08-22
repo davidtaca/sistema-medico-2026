@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Pagar Cita</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
+        h2 { text-align: center; color: #2b6cb0; }
+        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+        select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; margin-top: 20px; padding: 10px; background: #2f855a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        button:hover { background: #276749; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; }
+        .exito { color: #2f855a; }
+        #campoTransaccion { display: none; }
+    </style>
+</head>
+<body>
+<div class="caja">
+    <h2>Pagar Cita</h2>
+
+    <label for="monto">Monto a pagar (Q)</label>
+    <input type="number" id="monto" step="0.01" value="150.00">
+
+    <label for="metodoPago">Método de pago</label>
+    <select id="metodoPago">
+        <option value="TARJETA">Tarjeta</option>
+        <option value="EFECTIVO">Efectivo</option>
+        <option value="TRANSFERENCIA">Transferencia</option>
+    </select>
+
+    <div id="campoTransaccion">
+        <label for="numeroTransaccion">Número de transacción</label>
+        <input type="text" id="numeroTransaccion" placeholder="Ej. TXN-123456">
+    </div>
+
+    <button onclick="pagar()">Confirmar Pago</button>
+    <div id="mensaje"></div>
+</div>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const citaId = params.get('citaId');
+
+    if (!citaId) {
+        alert('No se especificó la cita a pagar.');
+        window.location.href = '/mis-citas.html';
+    }
+
+    const selectMetodo = document.getElementById('metodoPago');
+    const campoTransaccion = document.getElementById('campoTransaccion');
+
+    function actualizarCampoTransaccion() {
+        campoTransaccion.style.display = selectMetodo.value === 'TARJETA' ? 'block' : 'none';
+    }
+    selectMetodo.addEventListener('change', actualizarCampoTransaccion);
+    actualizarCampoTransaccion();
+
+    async function pagar() {
+        const mensaje = document.getElementById('mensaje');
+        mensaje.textContent = '';
+        mensaje.className = '';
+
+        const datos = {
+            citaId: citaId,
+            monto: document.getElementById('monto').value,
+            metodoPago: selectMetodo.value,
+            numeroTransaccion: document.getElementById('numeroTransaccion').value || null
+        };
+
+        try {
+            const respuesta = await fetch('/api/pagos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            });
+            const resultado = await respuesta.json();
+
+            if (!respuesta.ok) {
+                mensaje.textContent = resultado.error || 'No se pudo procesar el pago.';
+                mensaje.className = 'error';
+                return;
+            }
+
+            mensaje.textContent = 'Pago registrado. La cita ha sido confirmada.';
+            mensaje.className = 'exito';
+            setTimeout(() => { window.location.href = '/mis-citas.html'; }, 1800);
+
+        } catch (error) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.className = 'error';
+        }
+    }
+</script>
+</body>
+</html>

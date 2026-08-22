@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Recepción de Citas</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 450px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; }
+        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { padding: 10px 16px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #2c5282; }
+        .cita { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top: 20px; }
+        .cita p { margin: 4px 0; font-size: 14px; }
+        .estado { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; }
+        .PENDIENTE_PAGO { background: #dd6b20; }
+        .CONFIRMADA { background: #2f855a; }
+        .PACIENTE_PRESENTE { background: #2b6cb0; }
+        .CANCELADA { background: #c53030; }
+        .btn-registrar { background: #2f855a; width: 100%; box-sizing: border-box; }
+        .btn-registrar:hover { background: #276749; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; }
+        .exito { color: #2f855a; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Recepción de Citas</h2>
+
+    <label for="dpi">DPI del paciente</label>
+    <input type="text" id="dpi" maxlength="13" placeholder="13 dígitos">
+    <button onclick="buscar()">Buscar</button>
+
+    <div id="resultado"></div>
+    <div id="mensaje"></div>
+</div>
+
+<script>
+    async function buscar() {
+        const dpi = document.getElementById('dpi').value.trim();
+        const resultado = document.getElementById('resultado');
+        const mensaje = document.getElementById('mensaje');
+        resultado.innerHTML = '';
+        mensaje.textContent = '';
+        mensaje.className = '';
+
+        if (!dpi) {
+            mensaje.textContent = 'Ingrese el DPI del paciente.';
+            mensaje.className = 'error';
+            return;
+        }
+
+        const respUsuario = await fetch(`/api/usuarios/dpi/${dpi}`);
+        const paciente = await respUsuario.json();
+
+        if (!respUsuario.ok) {
+            mensaje.textContent = paciente.error;
+            mensaje.className = 'error';
+            return;
+        }
+
+        const citas = await fetch(`/api/citas/paciente/${paciente.id}`).then(r => r.json());
+        const citaActiva = citas.find(c => c.estado === 'CONFIRMADA' || c.estado === 'PENDIENTE_PAGO');
+
+        if (!citaActiva) {
+            mensaje.textContent = `El paciente ${paciente.nombreCompleto} está registrado pero no tiene citas activas.`;
+            mensaje.className = 'error';
+            return;
+        }
+
+        const fecha = new Date(citaActiva.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+
+        const div = document.createElement('div');
+        div.className = 'cita';
+        div.innerHTML = `
+    <p><strong>Paciente:</strong> ${paciente.nombreCompleto}</p>
+    <p><strong>No. Cita:</strong> ${citaActiva.id}</p>
+    <p><strong>Especialidad:</strong> ${citaActiva.especialidad.nombre}</p>
+    <p><strong>Sucursal:</strong> ${citaActiva.sucursal.nombre}</p>
+    <p><strong>Fecha:</strong> ${fecha}</p>
+    <p><strong>Motivo:</strong> ${citaActiva.motivoConsulta || '-'}</p>
+    <p><strong>Estado:</strong> <span class="estado ${citaActiva.estado}">${citaActiva.estado.replace('_',' ')}</span></p>
+  `;
+
+        if (citaActiva.estado === 'PENDIENTE_PAGO') {
+            div.innerHTML += `<p style="color:#dd6b20; font-weight:bold;">Debe realizar el pago en caja antes de ser atendido.</p>`;
+        } else {
+            const boton = document.createElement('button');
+            boton.textContent = 'Registrar Llegada';
+            boton.className = 'btn-registrar';
+            boton.onclick = () => registrarLlegada(citaActiva.id, paciente.nombreCompleto);
+            div.appendChild(boton);
+        }
+
+        resultado.appendChild(div);
+    }
+
+    async function registrarLlegada(citaId, nombrePaciente) {
+        const mensaje = document.getElementById('mensaje');
+        try {
+            const respuesta = await fetch(`/api/citas/${citaId}/presente`, { method: 'PUT' });
+            const resultado = await respuesta.json();
+
+            if (!respuesta.ok) {
+                mensaje.textContent = resultado.error || 'Error al registrar la llegada.';
+                mensaje.className = 'error';
+                return;
+            }
+
+            mensaje.textContent = `La llegada de ${nombrePaciente} ha sido registrada. Debe pasar a la sala de espera.`;
+            mensaje.className = 'exito';
+            document.getElementById('resultado').innerHTML = '';
+
+        } catch (error) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.className = 'error';
+        }
+    }
+</script>
+</body>
+</html>

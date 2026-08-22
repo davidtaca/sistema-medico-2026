@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mis Citas</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 500px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; }
+        .cita { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top: 15px; }
+        .cita p { margin: 4px 0; font-size: 14px; }
+        .estado { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; }
+        .PENDIENTE_PAGO { background: #dd6b20; }
+        .CONFIRMADA { background: #2f855a; }
+        .PACIENTE_PRESENTE { background: #2b6cb0; }
+        .CANCELADA { background: #c53030; }
+        .COMPLETADA { background: #718096; }
+        button { padding: 8px 16px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #2c5282; }
+        #vacio { text-align: center; color: #718096; margin-top: 20px; }
+        a { display: block; text-align: center; margin-top: 20px; color: #2b6cb0; text-decoration: none; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Mis Citas</h2>
+    <div id="lista"></div>
+    <div id="vacio" style="display:none;">No tienes citas registradas.</div>
+    <a href="/index.html">Volver</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+
+    if (!usuario || usuario.rol !== 'PACIENTE') {
+        alert('Debe iniciar sesión como paciente.');
+        window.location.href = '/index.html';
+    }
+
+    async function cargarCitas() {
+        const citas = await fetch(`/api/citas/paciente/${usuario.id}`).then(r => r.json());
+        const lista = document.getElementById('lista');
+
+        if (citas.length === 0) {
+            document.getElementById('vacio').style.display = 'block';
+            return;
+        }
+
+        citas.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'cita';
+
+            const fecha = new Date(c.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+
+            div.innerHTML = `
+      <p><strong>Médico:</strong> ${c.medico.nombreCompleto}</p>
+      <p><strong>Especialidad:</strong> ${c.especialidad.nombre}</p>
+      <p><strong>Sucursal:</strong> ${c.sucursal.nombre}</p>
+      <p><strong>Fecha:</strong> ${fecha}</p>
+      <p><strong>Estado:</strong> <span class="estado ${c.estado}">${c.estado.replace('_',' ')}</span></p>
+    `;
+
+            if (c.estado === 'PENDIENTE_PAGO') {
+                const boton = document.createElement('button');
+                boton.textContent = 'Pagar Cita';
+                boton.onclick = () => { window.location.href = `/pago.html?citaId=${c.id}`; };
+                div.appendChild(boton);
+            }
+
+            lista.appendChild(div);
+        });
+    }
+
+    cargarCitas();
+</script>
+</body>
+</html>
