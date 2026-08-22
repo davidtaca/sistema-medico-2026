@@ -9,6 +9,7 @@
         h2 { text-align: center; color: #2b6cb0; }
         label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
         input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        input.error-campo { border-color: #c53030; background: #fff5f5; }
         button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
         button:hover { background: #2c5282; }
         #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
@@ -27,17 +28,17 @@
     <label for="dpi">DPI</label>
     <input type="text" id="dpi" maxlength="13" placeholder="13 dígitos">
 
-    <label for="nit">NIT (opcional)</label>
-    <input type="text" id="nit">
+    <label for="nit">NIT</label>
+    <input type="text" id="nit" placeholder="8-9 caracteres">
 
     <label for="telefono">Teléfono</label>
-    <input type="text" id="telefono">
+    <input type="text" id="telefono" maxlength="8" placeholder="8 dígitos">
 
     <label for="numeroSeguro">No. de afiliado al seguro (opcional)</label>
     <input type="text" id="numeroSeguro">
 
     <label for="correo">Correo</label>
-    <input type="email" id="correo">
+    <input type="email" id="correo" placeholder="usuario@dominio.com">
 
     <label for="username">Nombre de usuario</label>
     <input type="text" id="username" placeholder="8-9 caracteres">
@@ -45,21 +46,35 @@
     <label for="password">Contraseña</label>
     <input type="password" id="password" placeholder="Mínimo 12 caracteres">
 
-    <button onclick="registrar()">Registrarme</button>
+    <button onclick="registrar()">Registrarse</button>
     <div id="mensaje"></div>
-    <a href="/index.html">Ya tengo cuenta, iniciar sesión</a>
+    <a href="#" onclick="volverAlPortal(); return false;">Volver al portal</a>
 </div>
 
 <script>
+    function limpiarErrores() {
+        document.querySelectorAll('input').forEach(i => i.classList.remove('error-campo'));
+    }
+
+    function volverAlPortal() {
+        const hayDatos = [...document.querySelectorAll('input')].some(i => i.value.trim() !== '');
+        if (hayDatos) {
+            const confirmar = confirm('¿Está seguro que desea salir? Se perderán los datos ingresados.');
+            if (!confirmar) return;
+        }
+        window.location.href = '/index.html';
+    }
+
     async function registrar() {
         const mensaje = document.getElementById('mensaje');
         mensaje.textContent = '';
         mensaje.className = '';
+        limpiarErrores();
 
         const datos = {
             nombreCompleto: document.getElementById('nombreCompleto').value.trim(),
             dpi: document.getElementById('dpi').value.trim(),
-            nit: document.getElementById('nit').value.trim() || null,
+            nit: document.getElementById('nit').value.trim(),
             telefono: document.getElementById('telefono').value.trim(),
             numeroSeguro: document.getElementById('numeroSeguro').value.trim() || null,
             correo: document.getElementById('correo').value.trim(),
@@ -68,19 +83,59 @@
             rol: 'PACIENTE'
         };
 
-        if (!datos.nombreCompleto || !datos.dpi || !datos.correo || !datos.username || !datos.password) {
-            mensaje.textContent = 'Complete los campos obligatorios.';
+        // Validaciones cliente (RN-CU02-01 a 06, RN-GLOBAL-001/002)
+        if (!datos.nombreCompleto || datos.nombreCompleto.length < 10 || datos.nombreCompleto.length > 100) {
+            mensaje.textContent = `El nombre debe contener entre 10 y 100 caracteres. Usted ingresó ${datos.nombreCompleto.length} caracteres.`;
             mensaje.className = 'error';
+            document.getElementById('nombreCompleto').classList.add('error-campo');
             return;
         }
-        if (datos.dpi.length !== 13) {
-            mensaje.textContent = 'El DPI debe tener 13 dígitos.';
+        if (!/^\d{13}$/.test(datos.dpi)) {
+            mensaje.textContent = 'El DPI debe contener exactamente 13 dígitos numéricos.';
             mensaje.className = 'error';
+            document.getElementById('dpi').classList.add('error-campo');
+            return;
+        }
+        if (!datos.nit || datos.nit.length < 8 || datos.nit.length > 9 || !/^[a-zA-Z0-9]+$/.test(datos.nit)) {
+            mensaje.textContent = 'El NIT debe contener entre 8 y 9 caracteres alfanuméricos.';
+            mensaje.className = 'error';
+            document.getElementById('nit').classList.add('error-campo');
+            return;
+        }
+        if (!/^\d{8}$/.test(datos.telefono)) {
+            mensaje.textContent = 'El número de teléfono debe contener exactamente 8 dígitos numéricos.';
+            mensaje.className = 'error';
+            document.getElementById('telefono').classList.add('error-campo');
+            return;
+        }
+        if (!/^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(datos.correo)) {
+            mensaje.textContent = 'El formato del correo electrónico no es válido. Ejemplo: usuario@dominio.com';
+            mensaje.className = 'error';
+            document.getElementById('correo').classList.add('error-campo');
+            return;
+        }
+        if (datos.username.length < 8) {
+            mensaje.textContent = 'El usuario debe contener al menos 8 caracteres.';
+            mensaje.className = 'error';
+            document.getElementById('username').classList.add('error-campo');
+            return;
+        }
+        if (datos.username.length > 9) {
+            mensaje.textContent = 'El usuario no puede exceder los 9 caracteres.';
+            mensaje.className = 'error';
+            document.getElementById('username').classList.add('error-campo');
+            return;
+        }
+        if (!/^[a-zA-Z0-9]+$/.test(datos.username)) {
+            mensaje.textContent = 'El usuario debe contener únicamente caracteres alfanuméricos.';
+            mensaje.className = 'error';
+            document.getElementById('username').classList.add('error-campo');
             return;
         }
         if (datos.password.length < 12) {
-            mensaje.textContent = 'La contraseña debe tener al menos 12 caracteres.';
+            mensaje.textContent = 'La contraseña debe contener al menos 12 caracteres.';
             mensaje.className = 'error';
+            document.getElementById('password').classList.add('error-campo');
             return;
         }
 
@@ -98,9 +153,9 @@
                 return;
             }
 
-            mensaje.textContent = 'Registro exitoso. Redirigiendo a inicio de sesión...';
+            mensaje.textContent = '¡Registro exitoso! Su cuenta ha sido creada. Ahora puede iniciar sesión con sus credenciales.';
             mensaje.className = 'exito';
-            setTimeout(() => { window.location.href = '/index.html'; }, 1500);
+            setTimeout(() => { window.location.href = '/index.html'; }, 2000);
 
         } catch (error) {
             mensaje.textContent = 'No se pudo conectar con el servidor.';
