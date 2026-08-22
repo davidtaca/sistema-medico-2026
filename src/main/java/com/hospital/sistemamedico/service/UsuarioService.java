@@ -53,14 +53,18 @@ public class UsuarioService {
                 throw new IllegalArgumentException("El DPI debe contener exactamente 13 dígitos numéricos.");
             }
             if (usuarioRepository.existsByDpi(usuario.getDpi())) {
-                throw new IllegalArgumentException("El DPI ya está registrado.");
+                throw new IllegalArgumentException("Ya existe una cuenta registrada con este número de DPI. Si ya tiene cuenta, inicie sesión.");
             }
         }
 
-        // RN-CU01-08: Teléfono opcional
+        // RN-CU01-08 (interno, opcional) / RN-CU02-02 (paciente, obligatorio): Teléfono
+        boolean esPaciente = usuario.getRol() == Rol.PACIENTE;
+        if (esPaciente && (usuario.getTelefono() == null || usuario.getTelefono().isBlank())) {
+            throw new IllegalArgumentException("El número de teléfono debe contener exactamente 8 dígitos numéricos.");
+        }
         if (usuario.getTelefono() != null && !usuario.getTelefono().isBlank()) {
             if (!usuario.getTelefono().matches("^\\d{8}$")) {
-                throw new IllegalArgumentException("El teléfono debe contener exactamente 8 dígitos.");
+                throw new IllegalArgumentException("El número de teléfono debe contener exactamente 8 dígitos numéricos.");
             }
         }
 
@@ -79,11 +83,17 @@ public class UsuarioService {
             throw new IllegalArgumentException("Debe seleccionar una especialidad para el médico.");
         }
 
-        // RN-CU01-11: NIT opcional (RN-GLOBAL-002: 8-9 caracteres alfanuméricos)
+        // RN-CU01-11 (interno, opcional) / RN-GLOBAL-002 vía CU-02 (paciente, obligatorio): NIT
+        if (esPaciente && (usuario.getNit() == null || usuario.getNit().isBlank())) {
+            throw new IllegalArgumentException("El campo NIT es obligatorio.");
+        }
         if (usuario.getNit() != null && !usuario.getNit().isBlank()) {
             String nit = usuario.getNit().trim();
             if (nit.length() < 8 || nit.length() > 9) {
-                throw new IllegalArgumentException("El NIT debe contener entre 8 y 9 caracteres.");
+                throw new IllegalArgumentException("El NIT debe contener entre 8 y 9 caracteres. Usted ingresó " + nit.length() + " caracteres.");
+            }
+            if (!nit.matches("^[a-zA-Z0-9]+$")) {
+                throw new IllegalArgumentException("El NIT debe contener únicamente caracteres alfanuméricos.");
             }
         }
 
@@ -95,12 +105,15 @@ public class UsuarioService {
             }
         }
 
-        // Correo
+        // RN-CU02-04: Correo Electrónico
         if (usuario.getCorreo() == null || usuario.getCorreo().isBlank()) {
             throw new IllegalArgumentException("El campo Correo Electrónico es obligatorio.");
         }
+        if (!usuario.getCorreo().matches("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+            throw new IllegalArgumentException("El formato del correo electrónico no es válido. Ejemplo: usuario@dominio.com");
+        }
         if (usuarioRepository.existsByCorreo(usuario.getCorreo())) {
-            throw new IllegalArgumentException("El correo ya está registrado.");
+            throw new IllegalArgumentException("Ya existe una cuenta registrada con este correo electrónico.");
         }
 
         usuario.setActivo(true);
