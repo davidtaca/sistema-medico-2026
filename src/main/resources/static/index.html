@@ -2,43 +2,166 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Sistema Médico - Iniciar Sesión</title>
+    <title>Sistema Médico - Portal</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 320px; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 340px; }
         h2 { text-align: center; color: #2b6cb0; }
+        p.sub { text-align: center; color: #718096; font-size: 13px; margin-top: -10px; }
         label { display: block; margin-top: 15px; font-size: 14px; color: #333; }
         input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        input:disabled { background: #f1f1f1; }
         button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
-        button:hover { background: #2c5282; }
-        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        button:hover:not(:disabled) { background: #2c5282; }
+        button:disabled { background: #a0aec0; cursor: not-allowed; }
+        button.secundario { background: #718096; }
+        button.secundario:hover { background: #4a5568; }
+        #mensaje, #mensajeModal { margin-top: 15px; text-align: center; font-size: 14px; }
         .error { color: #c53030; }
         .exito { color: #2f855a; }
+        .info { color: #2b6cb0; }
         #panel { display: none; margin-top: 20px; }
-        a.enlace { display: block; text-align: center; margin-top: 15px; color: #2b6cb0; font-size: 13px; text-decoration: none; }
+        a.enlace { display: block; text-align: center; margin-top: 15px; color: #2b6cb0; text-decoration: none; font-size: 13px; }
         a.enlace:hover { text-decoration: underline; }
+        .contador { text-align: right; font-size: 11px; color: #a0aec0; margin-top: 3px; }
+        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 10; }
+        .modal { background: white; padding: 30px; border-radius: 10px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .modal h3 { color: #2b6cb0; margin-top: 0; }
+        .modal p { font-size: 13px; color: #4a5568; }
+        .cerrarModal { text-align: right; margin-top: 15px; }
+        .cerrarModal a { color: #718096; font-size: 13px; cursor: pointer; text-decoration: underline; }
     </style>
 </head>
 <body>
-<div class="caja">
+
+<div class="caja" id="landing">
+    <h2>Portal Sistema Médico</h2>
+    <p class="sub">Servicios médicos, especialidades y agendamiento de citas</p>
+    <button onclick="abrirModal()">Agendar Cita</button>
+    <a href="#" class="enlace" onclick="mostrarLogin(); return false;">Ya tengo cuenta / Personal interno</a>
+</div>
+
+<div class="caja" id="formularioLogin" style="display:none;">
     <h2>Iniciar Sesión</h2>
-    <div id="formulario">
-        <label for="username">Usuario</label>
-        <input type="text" id="username" placeholder="Nombre de usuario">
-        <label for="password">Contraseña</label>
-        <input type="password" id="password" placeholder="Contraseña">
-        <button onclick="iniciarSesion()">Iniciar Sesión</button>
-        <div id="mensaje"></div>
-        <a href="/registro.html" class="enlace">¿No tienes cuenta? Regístrate</a>
-    </div>
-    <div id="panel">
-        <p><strong>Bienvenido, <span id="nombreUsuario"></span></strong></p>
-        <p>Rol: <span id="rolUsuario"></span></p>
-        <button onclick="cerrarSesion()">Cerrar Sesión</button>
+    <label for="username">Usuario</label>
+    <input type="text" id="username" placeholder="Nombre de usuario">
+    <label for="password">Contraseña</label>
+    <input type="password" id="password" placeholder="Contraseña">
+    <button id="btnLogin" onclick="iniciarSesion()">Iniciar Sesión</button>
+    <div id="mensaje"></div>
+    <a href="#" class="enlace" onclick="mostrarLanding(); return false;">Volver</a>
+    <a href="/registro.html" class="enlace">¿No tienes cuenta? Regístrate</a>
+</div>
+
+<div class="caja" id="panel">
+    <h2>Iniciar Sesión</h2>
+    <p><strong>Bienvenido, <span id="nombreUsuario"></span></strong></p>
+    <p>Rol: <span id="rolUsuario"></span></p>
+    <button onclick="cerrarSesion()">Cerrar Sesión</button>
+</div>
+
+<div class="overlay" id="overlayModal">
+    <div class="modal">
+        <h3>Verificar Registro</h3>
+        <p>Ingrese su número de DPI para verificar si está registrado en el sistema.</p>
+        <input type="text" id="dpiModal" maxlength="13" oninput="actualizarContador()">
+        <div class="contador"><span id="contadorDpi">0</span>/13 dígitos</div>
+        <button id="btnVerificarDpi" onclick="verificarDpi()">Verificar DPI</button>
+        <div id="mensajeModal"></div>
+        <div class="cerrarModal"><a onclick="cerrarModal()">Cancelar</a></div>
     </div>
 </div>
 
 <script>
+    function abrirModal() {
+        document.getElementById('overlayModal').style.display = 'flex';
+        document.getElementById('dpiModal').value = '';
+        document.getElementById('mensajeModal').textContent = '';
+        actualizarContador();
+    }
+    function cerrarModal() {
+        document.getElementById('overlayModal').style.display = 'none';
+    }
+    function actualizarContador() {
+        document.getElementById('contadorDpi').textContent = document.getElementById('dpiModal').value.length;
+    }
+    let contextoLogin = 'interno';
+
+    function mostrarLogin(contexto) {
+        contextoLogin = contexto || 'interno';
+        document.getElementById('landing').style.display = 'none';
+        document.getElementById('formularioLogin').style.display = 'block';
+    }
+    function mostrarLanding() {
+        document.getElementById('formularioLogin').style.display = 'none';
+        document.getElementById('landing').style.display = 'block';
+    }
+
+    async function verificarDpi() {
+        const dpi = document.getElementById('dpiModal').value.trim();
+        const mensajeModal = document.getElementById('mensajeModal');
+        mensajeModal.textContent = '';
+        mensajeModal.className = '';
+
+        // RN-GLOBAL-001
+        if (!dpi) {
+            mensajeModal.textContent = 'El campo DPI es obligatorio. Por favor, ingrese su número de DPI.';
+            mensajeModal.className = 'error';
+            return;
+        }
+        if (!/^\d+$/.test(dpi)) {
+            mensajeModal.textContent = 'El DPI debe contener únicamente números. No se permiten letras ni caracteres especiales.';
+            mensajeModal.className = 'error';
+            return;
+        }
+        if (dpi.length !== 13) {
+            mensajeModal.textContent = `El DPI debe contener exactamente 13 dígitos. Usted ingresó ${dpi.length} dígitos.`;
+            mensajeModal.className = 'error';
+            return;
+        }
+
+        const boton = document.getElementById('btnVerificarDpi');
+        boton.disabled = true;
+        boton.textContent = 'Verificando...';
+
+        try {
+            const respuesta = await fetch(`/api/usuarios/dpi/${dpi}`);
+            const datos = await respuesta.json();
+
+            if (!respuesta.ok) {
+                // FA03: no registrado
+                mensajeModal.textContent = 'No se encontró un registro asociado a este DPI. Será redirigido al formulario de registro.';
+                mensajeModal.className = 'info';
+                setTimeout(() => { window.location.href = '/registro.html'; }, 2000);
+                return;
+            }
+
+            if (datos.rol !== 'PACIENTE') {
+                // FA04: DPI pertenece a usuario interno
+                mensajeModal.textContent = 'Este DPI pertenece a un usuario del sistema interno. Por favor, contacte a recepción.';
+                mensajeModal.className = 'error';
+                boton.disabled = false;
+                boton.textContent = 'Verificar DPI';
+                return;
+            }
+
+            // Confirmado como paciente registrado -> redirige a login
+            mensajeModal.textContent = 'Registro verificado. Redirigiendo a inicio de sesión...';
+            mensajeModal.className = 'exito';
+            setTimeout(() => {
+                cerrarModal();
+                mostrarLogin('paciente');
+            }, 1200);
+
+        } catch (error) {
+            // FA05
+            mensajeModal.textContent = 'No se pudo conectar con el servidor. Intente de nuevo más tarde.';
+            mensajeModal.className = 'error';
+            boton.disabled = false;
+            boton.textContent = 'Verificar DPI';
+        }
+    }
+
     async function iniciarSesion() {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
@@ -61,8 +184,30 @@
 
             const datos = await respuesta.json();
 
+            if (respuesta.status === 423) {
+                // FA07: cuenta bloqueada
+                mensaje.textContent = datos.error;
+                mensaje.className = 'error';
+                document.getElementById('username').disabled = true;
+                document.getElementById('password').disabled = true;
+                document.getElementById('btnLogin').disabled = true;
+                return;
+            }
+
             if (!respuesta.ok) {
-                mensaje.textContent = datos.error || 'Usuario o contraseña incorrectos.';
+                // FA06: credenciales incorrectas
+                mensaje.textContent = datos.error;
+                mensaje.className = 'error';
+                return;
+            }
+
+            document.getElementById('username').disabled = false;
+            document.getElementById('password').disabled = false;
+            document.getElementById('btnLogin').disabled = false;
+
+            // FA09: acceso al portal de pacientes con rol no autorizado
+            if (contextoLogin === 'paciente' && datos.rol !== 'PACIENTE') {
+                mensaje.innerHTML = 'Este acceso es exclusivo para pacientes. Si es personal del hospital, use el panel administrativo.<br><a href="#" class="enlace" onclick="contextoLogin=\'interno\'; iniciarSesion(); return false;">Acceso Panel Administrativo</a>';
                 mensaje.className = 'error';
                 return;
             }
@@ -71,13 +216,15 @@
             window.location.href = '/menu.html';
 
         } catch (error) {
-            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            // FA08
+            mensaje.textContent = 'No se pudo conectar con el servidor. Intente de nuevo más tarde.';
             mensaje.className = 'error';
         }
     }
 
     function cerrarSesion() {
-        document.getElementById('formulario').style.display = 'block';
+        sessionStorage.removeItem('usuarioActual');
+        mostrarLanding();
         document.getElementById('panel').style.display = 'none';
         document.getElementById('username').value = '';
         document.getElementById('password').value = '';
