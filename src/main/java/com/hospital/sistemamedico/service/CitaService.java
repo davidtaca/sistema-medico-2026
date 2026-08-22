@@ -45,6 +45,20 @@ public class CitaService {
             throw new IllegalArgumentException("El médico no atiende en esa sucursal.");
         }
 
+        // RN-CU03-05: Fecha y Hora obligatoria y futura
+        if (fechaHora == null || !fechaHora.isAfter(java.time.LocalDateTime.now())) {
+            throw new IllegalArgumentException("Debe seleccionar una fecha y hora futuras. Las citas no pueden agendarse en fechas pasadas o presentes.");
+        }
+
+        // RN-CU03-03: Motivo de Visita
+        if (motivoConsulta == null || motivoConsulta.isBlank()) {
+            throw new IllegalArgumentException("El motivo debe contener entre 10 y 2000 caracteres. Usted ingresó 0 caracteres.");
+        }
+        int longitudMotivo = motivoConsulta.trim().length();
+        if (longitudMotivo < 10 || longitudMotivo > 2000) {
+            throw new IllegalArgumentException("El motivo debe contener entre 10 y 2000 caracteres. Usted ingresó " + longitudMotivo + " caracteres.");
+        }
+
         if (citaRepository.existsByMedicoIdAndFechaHora(medicoId, fechaHora)) {
             throw new IllegalArgumentException("El médico ya tiene una cita agendada en ese horario.");
         }
