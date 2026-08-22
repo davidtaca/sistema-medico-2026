@@ -5,104 +5,255 @@
     <title>Agendar Cita</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 400px; }
-        h2 { text-align: center; color: #2b6cb0; }
-        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 420px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+
+        .progreso { display: flex; justify-content: space-between; margin-bottom: 25px; }
+        .paso-indicador { flex: 1; text-align: center; }
+        .paso-indicador .circulo { width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; color: #718096; display: flex; align-items: center; justify-content: center; margin: 0 auto 4px; font-size: 12px; font-weight: bold; }
+        .paso-indicador.activo .circulo { background: #2b6cb0; color: white; }
+        .paso-indicador.completado .circulo { background: #2f855a; color: white; }
+        .paso-indicador span.etiqueta { font-size: 10px; color: #718096; }
+
         select, input, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-family: inherit; }
-        button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
-        button:hover { background: #2c5282; }
+        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+
+        .botones { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        button.primario { background: #2b6cb0; color: white; }
+        button.primario:hover { background: #2c5282; }
+        button.volver { background: #718096; color: white; }
+        button.volver:hover { background: #4a5568; }
+
         #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
         .error { color: #c53030; }
-        .exito { color: #2f855a; }
-        .checkbox { display: flex; align-items: center; margin-top: 15px; }
-        .checkbox input { width: auto; margin-right: 8px; }
+        .info { color: #2b6cb0; }
+
+        .resumen p { font-size: 14px; margin: 6px 0; }
+        .resumen strong { color: #2b6cb0; }
+
+        .oculto { display: none; }
     </style>
 </head>
 <body>
 <div class="caja">
     <h2>Agendar Cita</h2>
 
-    <label for="sucursal">Sucursal</label>
-    <select id="sucursal"><option value="">Seleccione...</option></select>
+    <div class="progreso" id="progreso"></div>
 
-    <label for="especialidad">Especialidad</label>
-    <select id="especialidad"><option value="">Seleccione...</option></select>
-
-    <label for="medico">Médico</label>
-    <select id="medico"><option value="">Seleccione...</option></select>
-
-    <label for="fechaHora">Fecha y hora</label>
-    <input type="datetime-local" id="fechaHora">
-
-    <label for="motivo">Motivo de la consulta</label>
-    <textarea id="motivo" rows="3"></textarea>
-
-    <div class="checkbox">
-        <input type="checkbox" id="emergencia">
-        <label for="emergencia" style="margin:0;">Es una emergencia</label>
+    <!-- Paso 1: Sucursal -->
+    <div id="paso1">
+        <label for="sucursal">Seleccione una sucursal</label>
+        <select id="sucursal"><option value="">Seleccione...</option></select>
+        <div class="botones">
+            <button class="primario" onclick="irAPaso(2)">Siguiente</button>
+        </div>
     </div>
 
-    <button onclick="agendar()">Agendar Cita</button>
+    <!-- Paso 2: Especialidad -->
+    <div id="paso2" class="oculto">
+        <label for="especialidad">Seleccione una especialidad</label>
+        <select id="especialidad"><option value="">Seleccione...</option></select>
+        <div class="botones">
+            <button class="volver" onclick="irAPaso(1)">Volver</button>
+            <button class="primario" onclick="irAPaso(3)">Siguiente</button>
+        </div>
+    </div>
+
+    <!-- Paso 3: Médico -->
+    <div id="paso3" class="oculto">
+        <label for="medico">Seleccione un médico</label>
+        <select id="medico"><option value="">Seleccione...</option></select>
+        <div class="botones">
+            <button class="volver" onclick="irAPaso(2)">Volver</button>
+            <button class="primario" onclick="irAPaso(4)">Siguiente</button>
+        </div>
+    </div>
+
+    <!-- Paso 4: Fecha y Hora -->
+    <div id="paso4" class="oculto">
+        <label for="fechaHora">Seleccione fecha y hora</label>
+        <input type="datetime-local" id="fechaHora">
+        <div class="botones">
+            <button class="volver" onclick="irAPaso(3)">Volver</button>
+            <button class="primario" onclick="irAPaso(5)">Siguiente</button>
+        </div>
+    </div>
+
+    <!-- Paso 5: Confirmar -->
+    <div id="paso5" class="oculto">
+        <div class="resumen" id="resumen"></div>
+
+        <label for="motivo">Motivo de la consulta</label>
+        <textarea id="motivo" rows="3" maxlength="2000" placeholder="Mínimo 10 caracteres"></textarea>
+
+        <label style="display:flex; align-items:center; gap:6px; margin-top:12px;">
+            <input type="checkbox" id="esEmergencia" style="width:auto;"> Es una emergencia
+        </label>
+
+        <div class="botones">
+            <button class="volver" onclick="irAPaso(4)">Volver</button>
+            <button class="primario" onclick="confirmarCita()">Confirmar Cita</button>
+        </div>
+    </div>
+
     <div id="mensaje"></div>
 </div>
 
 <script>
-    let medicos = [];
     const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
-
     if (!usuario || usuario.rol !== 'PACIENTE') {
         alert('Debe iniciar sesión como paciente para agendar una cita.');
         window.location.href = '/index.html';
     }
 
-    async function cargarListas() {
-        const sucursales = await fetch('/api/sucursales/activas').then(r => r.json());
-        const especialidades = await fetch('/api/especialidades/activas').then(r => r.json());
-        medicos = await fetch('/api/usuarios/rol/MEDICO').then(r => r.json());
+    let sucursales = [], especialidades = [], medicos = [];
+    let pasoActual = 1;
+    const etiquetas = ['Sucursal', 'Especialidad', 'Médico', 'Fecha', 'Confirmar'];
 
-        const selectSucursal = document.getElementById('sucursal');
-        sucursales.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.id;
-            opt.textContent = s.nombre;
-            selectSucursal.appendChild(opt);
-        });
-
-        const selectEspecialidad = document.getElementById('especialidad');
-        especialidades.forEach(e => {
-            const opt = document.createElement('option');
-            opt.value = e.id;
-            opt.textContent = e.nombre;
-            selectEspecialidad.appendChild(opt);
-        });
-
-        filtrarMedicos();
+    function renderizarProgreso() {
+        const contenedor = document.getElementById('progreso');
+        contenedor.innerHTML = '';
+        for (let i = 1; i <= 5; i++) {
+            const div = document.createElement('div');
+            div.className = 'paso-indicador' + (i === pasoActual ? ' activo' : (i < pasoActual ? ' completado' : ''));
+            div.innerHTML = `<div class="circulo">${i < pasoActual ? '✓' : i}</div><span class="etiqueta">${etiquetas[i-1]}</span>`;
+            contenedor.appendChild(div);
+        }
     }
 
-    function filtrarMedicos() {
-        const sucursalId = document.getElementById('sucursal').value;
-        const especialidadId = document.getElementById('especialidad').value;
-        const selectMedico = document.getElementById('medico');
-        selectMedico.innerHTML = '<option value="">Seleccione...</option>';
+    async function cargarSucursales() {
+        sucursales = await fetch('/api/sucursales/activas').then(r => r.json());
+        const select = document.getElementById('sucursal');
+        sucursales.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id; opt.textContent = s.nombre;
+            select.appendChild(opt);
+        });
+    }
 
+    async function cargarMedicosDeSucursal(sucursalId) {
+        const todosMedicos = await fetch('/api/usuarios/rol/MEDICO').then(r => r.json());
+        medicos = todosMedicos.filter(m => m.sucursal && m.sucursal.id == sucursalId);
+    }
+
+    function renderizarEspecialidadesDisponibles() {
+        const idsEspecialidades = [...new Set(medicos.map(m => m.especialidad && m.especialidad.id).filter(Boolean))];
+        const select = document.getElementById('especialidad');
+        select.innerHTML = '<option value="">Seleccione...</option>';
+        idsEspecialidades.forEach(id => {
+            const medico = medicos.find(m => m.especialidad.id === id);
+            const opt = document.createElement('option');
+            opt.value = id; opt.textContent = medico.especialidad.nombre;
+            select.appendChild(opt);
+        });
+    }
+
+    function renderizarMedicosDisponibles() {
+        const especialidadId = document.getElementById('especialidad').value;
+        const select = document.getElementById('medico');
+        select.innerHTML = '<option value="">Seleccione...</option>';
         medicos
-            .filter(m => (!sucursalId || (m.sucursal && m.sucursal.id == sucursalId))
-                && (!especialidadId || (m.especialidad && m.especialidad.id == especialidadId)))
+            .filter(m => m.especialidad && m.especialidad.id == especialidadId)
             .forEach(m => {
                 const opt = document.createElement('option');
-                opt.value = m.id;
-                opt.textContent = m.nombreCompleto;
-                selectMedico.appendChild(opt);
+                opt.value = m.id; opt.textContent = m.nombreCompleto;
+                select.appendChild(opt);
             });
     }
 
-    document.getElementById('sucursal').addEventListener('change', filtrarMedicos);
-    document.getElementById('especialidad').addEventListener('change', filtrarMedicos);
-
-    async function agendar() {
+    async function irAPaso(destino) {
         const mensaje = document.getElementById('mensaje');
         mensaje.textContent = '';
         mensaje.className = '';
+
+        // Validaciones al avanzar
+        if (destino > pasoActual) {
+            if (pasoActual === 1) {
+                const sucursalId = document.getElementById('sucursal').value;
+                if (!sucursalId) {
+                    mensaje.textContent = 'Debe seleccionar una sucursal para continuar.';
+                    mensaje.className = 'error';
+                    return;
+                }
+                await cargarMedicosDeSucursal(sucursalId);
+                if (medicos.length === 0) {
+                    const nombreSucursal = sucursales.find(s => s.id == sucursalId).nombre;
+                    mensaje.textContent = `No hay especialidades disponibles para la sucursal ${nombreSucursal}. Seleccione otra sucursal.`;
+                    mensaje.className = 'error';
+                    return;
+                }
+                renderizarEspecialidadesDisponibles();
+            }
+            if (pasoActual === 2) {
+                if (!document.getElementById('especialidad').value) {
+                    mensaje.textContent = 'Debe seleccionar una especialidad médica para continuar.';
+                    mensaje.className = 'error';
+                    return;
+                }
+                renderizarMedicosDisponibles();
+                if (document.getElementById('medico').options.length <= 1) {
+                    mensaje.textContent = 'No se encontraron horarios disponibles para esta especialidad en esta sede. Por favor, seleccione otra especialidad o sede.';
+                    mensaje.className = 'error';
+                    return;
+                }
+            }
+            if (pasoActual === 3) {
+                if (!document.getElementById('medico').value) {
+                    mensaje.textContent = 'Debe seleccionar un médico para continuar.';
+                    mensaje.className = 'error';
+                    return;
+                }
+            }
+            if (pasoActual === 4) {
+                const fechaHora = document.getElementById('fechaHora').value;
+                if (!fechaHora || new Date(fechaHora) <= new Date()) {
+                    mensaje.textContent = 'Debe seleccionar una fecha y hora futuras. Las citas no pueden agendarse en fechas pasadas o presentes.';
+                    mensaje.className = 'error';
+                    return;
+                }
+                mostrarResumen();
+            }
+        }
+
+        // Si retrocede: limpiar selecciones posteriores (FA04)
+        if (destino < pasoActual) {
+            if (destino <= 1) document.getElementById('especialidad').innerHTML = '<option value="">Seleccione...</option>';
+            if (destino <= 2) document.getElementById('medico').innerHTML = '<option value="">Seleccione...</option>';
+            if (destino <= 3) document.getElementById('fechaHora').value = '';
+        }
+
+        document.getElementById('paso' + pasoActual).classList.add('oculto');
+        document.getElementById('paso' + destino).classList.remove('oculto');
+        pasoActual = destino;
+        renderizarProgreso();
+    }
+
+    function mostrarResumen() {
+        const sucursal = sucursales.find(s => s.id == document.getElementById('sucursal').value);
+        const especialidadId = document.getElementById('especialidad').value;
+        const medico = medicos.find(m => m.id == document.getElementById('medico').value);
+        const fecha = new Date(document.getElementById('fechaHora').value).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+
+        document.getElementById('resumen').innerHTML = `
+    <p><strong>Sucursal:</strong> ${sucursal.nombre}</p>
+    <p><strong>Especialidad:</strong> ${medico.especialidad.nombre}</p>
+    <p><strong>Médico:</strong> ${medico.nombreCompleto}</p>
+    <p><strong>Fecha:</strong> ${fecha}</p>
+  `;
+    }
+
+    async function confirmarCita() {
+        const mensaje = document.getElementById('mensaje');
+        mensaje.textContent = '';
+        mensaje.className = '';
+
+        const motivo = document.getElementById('motivo').value.trim();
+        if (motivo.length < 10 || motivo.length > 2000) {
+            mensaje.textContent = `El motivo debe contener entre 10 y 2000 caracteres. Usted ingresó ${motivo.length} caracteres.`;
+            mensaje.className = 'error';
+            return;
+        }
 
         const datos = {
             pacienteId: usuario.id,
@@ -110,15 +261,9 @@
             sucursalId: document.getElementById('sucursal').value,
             especialidadId: document.getElementById('especialidad').value,
             fechaHora: document.getElementById('fechaHora').value,
-            motivoConsulta: document.getElementById('motivo').value,
-            emergencia: document.getElementById('emergencia').checked
+            motivoConsulta: motivo,
+            emergencia: document.getElementById('esEmergencia').checked
         };
-
-        if (!datos.medicoId || !datos.sucursalId || !datos.especialidadId || !datos.fechaHora) {
-            mensaje.textContent = 'Complete todos los campos requeridos.';
-            mensaje.className = 'error';
-            return;
-        }
 
         try {
             const respuesta = await fetch('/api/citas', {
@@ -134,8 +279,9 @@
                 return;
             }
 
-            mensaje.textContent = 'Cita agendada con éxito. Estado: Pendiente de pago.';
-            mensaje.className = 'exito';
+            mensaje.textContent = 'Su cita ha sido registrada exitosamente. Será redirigido al proceso de pago para confirmar la reserva.';
+            mensaje.className = 'info';
+            setTimeout(() => { window.location.href = `/pago.html?citaId=${resultado.id}`; }, 1800);
 
         } catch (error) {
             mensaje.textContent = 'No se pudo conectar con el servidor.';
@@ -143,7 +289,10 @@
         }
     }
 
-    cargarListas();
+    document.getElementById('especialidad').addEventListener('change', renderizarMedicosDisponibles);
+
+    renderizarProgreso();
+    cargarSucursales();
 </script>
 </body>
 </html>
