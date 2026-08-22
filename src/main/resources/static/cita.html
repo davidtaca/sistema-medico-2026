@@ -87,6 +87,10 @@
         <label for="motivo">Motivo de la consulta</label>
         <textarea id="motivo" rows="3" maxlength="2000" placeholder="Mínimo 10 caracteres"></textarea>
 
+        <label for="documento">Documento adjunto (opcional, PDF, máx. 2 MB)</label>
+        <input type="file" id="documento" accept="application/pdf">
+        <div id="mensajeDocumento" style="font-size:12px; margin-top:4px;"></div>
+
         <label style="display:flex; align-items:center; gap:6px; margin-top:12px;">
             <input type="checkbox" id="esEmergencia" style="width:auto;"> Es una emergencia
         </label>
@@ -255,6 +259,27 @@
             return;
         }
 
+        let nombreDocumento = null;
+        const archivo = document.getElementById('documento').files[0];
+        if (archivo) {
+            const formData = new FormData();
+            formData.append('archivo', archivo);
+            try {
+                const respuestaArchivo = await fetch('/api/citas/documento', { method: 'POST', body: formData });
+                const resultadoArchivo = await respuestaArchivo.json();
+                if (!respuestaArchivo.ok) {
+                    mensaje.textContent = resultadoArchivo.error;
+                    mensaje.className = 'error';
+                    return;
+                }
+                nombreDocumento = resultadoArchivo.nombreArchivo;
+            } catch (error) {
+                mensaje.textContent = 'No se pudo subir el documento adjunto.';
+                mensaje.className = 'error';
+                return;
+            }
+        }
+
         const datos = {
             pacienteId: usuario.id,
             medicoId: document.getElementById('medico').value,
@@ -262,7 +287,8 @@
             especialidadId: document.getElementById('especialidad').value,
             fechaHora: document.getElementById('fechaHora').value,
             motivoConsulta: motivo,
-            emergencia: document.getElementById('esEmergencia').checked
+            emergencia: document.getElementById('esEmergencia').checked,
+            documentoAdjunto: nombreDocumento
         };
 
         try {
