@@ -2,6 +2,7 @@ package com.hospital.sistemamedico.controller;
 
 import com.hospital.sistemamedico.model.MetodoPago;
 import com.hospital.sistemamedico.model.Pago;
+import com.hospital.sistemamedico.service.EmailService;
 import com.hospital.sistemamedico.service.PagoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,9 @@ public class PagoController {
     @Autowired
     private PagoService pagoService;
 
+    @Autowired
+    private EmailService emailService;
+
     @PostMapping
     public ResponseEntity<?> registrarPago(@RequestBody Map<String, Object> datos) {
         try {
@@ -25,8 +29,24 @@ public class PagoController {
                     Long.valueOf(datos.get("citaId").toString()),
                     new BigDecimal(datos.get("monto").toString()),
                     MetodoPago.valueOf(datos.get("metodoPago").toString()),
-                    datos.get("numeroTransaccion") != null ? datos.get("numeroTransaccion").toString() : null
+                    datos.get("numeroTransaccion") != null ? datos.get("numeroTransaccion").toString() : null,
+                    datos.get("numeroTarjeta") != null ? datos.get("numeroTarjeta").toString() : null,
+                    datos.get("nombreTitular") != null ? datos.get("nombreTitular").toString() : null,
+                    datos.get("fechaVencimiento") != null ? datos.get("fechaVencimiento").toString() : null,
+                    datos.get("cvv") != null ? datos.get("cvv").toString() : null
             );
+
+            emailService.enviarComprobantePago(
+                    pago.getCita().getPaciente().getCorreo(),
+                    pago.getCita().getPaciente().getNombreCompleto(),
+                    pago.getNumeroTransaccion(),
+                    pago.getMonto().toString(),
+                    pago.getCita().getMedico().getNombreCompleto(),
+                    pago.getCita().getEspecialidad().getNombre(),
+                    pago.getCita().getSucursal().getNombre(),
+                    pago.getCita().getFechaHora().toString()
+            );
+
             return ResponseEntity.status(HttpStatus.CREATED).body(pago);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
