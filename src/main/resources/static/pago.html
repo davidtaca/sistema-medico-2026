@@ -2,95 +2,256 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Pagar Cita</title>
+    <title>Pago de Consulta</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
-        h2 { text-align: center; color: #2b6cb0; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 380px; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        .resumen { background: #f7fafc; border-radius: 8px; padding: 12px; margin-bottom: 15px; font-size: 13px; }
+        .resumen p { margin: 3px 0; }
+        .resumen .monto { font-size: 18px; font-weight: bold; color: #2b6cb0; }
+        .temporizador { text-align: center; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
+        .temporizador.alerta { background: #fed7d7; }
+        .temporizador .tiempo { font-size: 24px; font-weight: bold; color: #c53030; }
+        .temporizador .etiqueta { font-size: 12px; color: #742a2a; }
         label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
-        select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; margin-top: 20px; padding: 10px; background: #2f855a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
-        button:hover { background: #276749; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        input.error-campo { border-color: #c53030; background: #fff5f5; }
+        .campo-error { font-size: 12px; color: #c53030; margin-top: 3px; }
+        .fila { display: flex; gap: 10px; }
+        .fila > div { flex: 1; }
+        .nota-seguridad { font-size: 11px; color: #718096; margin-top: 15px; text-align: center; }
+        button { width: 100%; margin-top: 20px; padding: 12px; background: #2f855a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        button:hover:not(:disabled) { background: #276749; }
+        button:disabled { background: #a0aec0; cursor: not-allowed; }
         #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
         .error { color: #c53030; }
-        .exito { color: #2f855a; }
-        #campoTransaccion { display: none; }
     </style>
 </head>
 <body>
 <div class="caja">
-    <h2>Pagar Cita</h2>
+    <h2>Pago de Consulta</h2>
 
-    <label for="monto">Monto a pagar (Q)</label>
-    <input type="number" id="monto" step="0.01" value="150.00">
-
-    <label for="metodoPago">Método de pago</label>
-    <select id="metodoPago">
-        <option value="TARJETA">Tarjeta</option>
-        <option value="EFECTIVO">Efectivo</option>
-        <option value="TRANSFERENCIA">Transferencia</option>
-    </select>
-
-    <div id="campoTransaccion">
-        <label for="numeroTransaccion">Número de transacción</label>
-        <input type="text" id="numeroTransaccion" placeholder="Ej. TXN-123456">
+    <div class="temporizador" id="temporizador">
+        <div class="tiempo" id="tiempoRestante">05:00</div>
+        <div class="etiqueta">Tiempo restante para confirmar su reserva</div>
     </div>
 
-    <button onclick="pagar()">Confirmar Pago</button>
+    <div class="resumen" id="resumen">Cargando resumen de la cita...</div>
+
+    <label for="numeroTarjeta">Número de tarjeta</label>
+    <input type="text" id="numeroTarjeta" maxlength="19" placeholder="13-19 dígitos">
+    <div class="campo-error" id="errorTarjeta"></div>
+
+    <label for="nombreTitular">Nombre del titular</label>
+    <input type="text" id="nombreTitular" placeholder="Como aparece en la tarjeta">
+    <div class="campo-error" id="errorTitular"></div>
+
+    <div class="fila">
+        <div>
+            <label for="vencimiento">Vencimiento</label>
+            <input type="text" id="vencimiento" maxlength="5" placeholder="MM/AA">
+            <div class="campo-error" id="errorVencimiento"></div>
+        </div>
+        <div>
+            <label for="cvv">CVV</label>
+            <input type="password" id="cvv" maxlength="4" placeholder="3-4 dígitos">
+            <div class="campo-error" id="errorCvv"></div>
+        </div>
+    </div>
+
+    <button id="btnPagar" onclick="pagar()">Pagar Q150.00</button>
+    <div class="nota-seguridad">🔒 Tu información de pago está protegida. El CVV nunca se almacena ni se envía.</div>
     <div id="mensaje"></div>
 </div>
 
 <script>
     const params = new URLSearchParams(window.location.search);
     const citaId = params.get('citaId');
+    const MONTO = 150.00;
+    const idempotencyKey = crypto.randomUUID();
 
     if (!citaId) {
         alert('No se especificó la cita a pagar.');
         window.location.href = '/mis-citas.html';
     }
 
-    const selectMetodo = document.getElementById('metodoPago');
-    const campoTransaccion = document.getElementById('campoTransaccion');
-
-    function actualizarCampoTransaccion() {
-        campoTransaccion.style.display = selectMetodo.value === 'TARJETA' ? 'block' : 'none';
+    async function cargarResumen() {
+        const cita = await fetch(`/api/citas/${citaId}`).then(r => r.json());
+        const fecha = new Date(cita.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+        document.getElementById('resumen').innerHTML = `
+    <p><strong>Médico:</strong> ${cita.medico.nombreCompleto}</p>
+    <p><strong>Especialidad:</strong> ${cita.especialidad.nombre}</p>
+    <p><strong>Sucursal:</strong> ${cita.sucursal.nombre}</p>
+    <p><strong>Fecha:</strong> ${fecha}</p>
+    <p class="monto">Total a pagar: Q${MONTO.toFixed(2)}</p>
+  `;
     }
-    selectMetodo.addEventListener('change', actualizarCampoTransaccion);
-    actualizarCampoTransaccion();
+    cargarResumen();
+
+    // FA02: temporizador de reserva de 5 minutos
+    const claveTemporizador = `pagoDeadline_${citaId}`;
+    let limite = sessionStorage.getItem(claveTemporizador);
+    if (!limite) {
+        limite = Date.now() + 5 * 60 * 1000;
+        sessionStorage.setItem(claveTemporizador, limite);
+    } else {
+        limite = parseInt(limite);
+    }
+    let intervaloTemporizador = setInterval(actualizarTemporizador, 1000);
+    actualizarTemporizador();
+
+    async function actualizarTemporizador() {
+        const restante = Math.max(0, limite - Date.now());
+        const minutos = Math.floor(restante / 60000);
+        const segundos = Math.floor((restante % 60000) / 1000);
+        document.getElementById('tiempoRestante').textContent =
+            `${String(minutos).padStart(2,'0')}:${String(segundos).padStart(2,'0')}`;
+        if (restante <= 60000) document.getElementById('temporizador').classList.add('alerta');
+        if (restante <= 0) {
+            clearInterval(intervaloTemporizador);
+            await expirarReserva();
+        }
+    }
+
+    async function expirarReserva() {
+        document.getElementById('btnPagar').disabled = true;
+        sessionStorage.removeItem(claveTemporizador);
+        try { await fetch(`/api/citas/${citaId}/cancelar`, { method: 'PUT' }); } catch (e) {}
+        const mensaje = document.getElementById('mensaje');
+        mensaje.textContent = 'El tiempo para confirmar su cita ha expirado. El horario seleccionado ha sido liberado. Por favor, seleccione un nuevo horario. Será redirigido en unos segundos...';
+        mensaje.className = 'error';
+        setTimeout(() => { window.location.href = '/cita.html'; }, 3000);
+    }
+
+    // Enmascarado del número de tarjeta al perder el foco (RN-CU04-01)
+    const inputTarjeta = document.getElementById('numeroTarjeta');
+    inputTarjeta.addEventListener('input', () => {
+        inputTarjeta.value = inputTarjeta.value.replace(/\D/g, '');
+    });
+    inputTarjeta.addEventListener('blur', () => {
+        const valor = inputTarjeta.value;
+        if (valor.length >= 4) {
+            inputTarjeta.dataset.realValue = valor;
+            inputTarjeta.value = '•'.repeat(valor.length - 4) + valor.slice(-4);
+        }
+    });
+    inputTarjeta.addEventListener('focus', () => {
+        if (inputTarjeta.dataset.realValue) {
+            inputTarjeta.value = inputTarjeta.dataset.realValue;
+        }
+    });
+
+    // Auto-formato de vencimiento MM/AA (RN-CU04-03)
+    document.getElementById('vencimiento').addEventListener('input', function() {
+        let valor = this.value.replace(/\D/g, '');
+        if (valor.length >= 3) {
+            valor = valor.slice(0, 2) + '/' + valor.slice(2, 4);
+        }
+        this.value = valor;
+    });
+
+    // CVV solo números
+    document.getElementById('cvv').addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '');
+    });
+
+    function mostrarErrorCampo(idCampo, idError, texto) {
+        document.getElementById(idCampo).classList.add('error-campo');
+        document.getElementById(idError).textContent = texto;
+    }
+    function limpiarErrores() {
+        ['numeroTarjeta','nombreTitular','vencimiento','cvv'].forEach(id => document.getElementById(id).classList.remove('error-campo'));
+        ['errorTarjeta','errorTitular','errorVencimiento','errorCvv'].forEach(id => document.getElementById(id).textContent = '');
+    }
+
+    function esNumeroTarjetaValidoLuhn(numero) {
+        let suma = 0, alternar = false;
+        for (let i = numero.length - 1; i >= 0; i--) {
+            let digito = parseInt(numero.charAt(i));
+            if (alternar) { digito *= 2; if (digito > 9) digito -= 9; }
+            suma += digito; alternar = !alternar;
+        }
+        return suma % 10 === 0;
+    }
 
     async function pagar() {
         const mensaje = document.getElementById('mensaje');
         mensaje.textContent = '';
         mensaje.className = '';
+        limpiarErrores();
 
-        const datos = {
-            citaId: citaId,
-            monto: document.getElementById('monto').value,
-            metodoPago: selectMetodo.value,
-            numeroTransaccion: document.getElementById('numeroTransaccion').value || null
-        };
+        const numeroTarjeta = inputTarjeta.dataset.realValue || inputTarjeta.value;
+        const nombreTitular = document.getElementById('nombreTitular').value.trim().toUpperCase();
+        const vencimiento = document.getElementById('vencimiento').value;
+        const cvv = document.getElementById('cvv').value;
+
+        let hayError = false;
+
+        if (!/^\d{13,19}$/.test(numeroTarjeta) || !esNumeroTarjetaValidoLuhn(numeroTarjeta)) {
+            mostrarErrorCampo('numeroTarjeta', 'errorTarjeta', 'El número de tarjeta no es válido.');
+            hayError = true;
+        }
+        if (nombreTitular.length < 5 || nombreTitular.length > 100 || !/^[A-ZÀ-Ÿ\s]+$/.test(nombreTitular)) {
+            mostrarErrorCampo('nombreTitular', 'errorTitular', 'El nombre del titular debe contener entre 5 y 100 caracteres alfabéticos sin especiales.');
+            hayError = true;
+        }
+        if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(vencimiento)) {
+            mostrarErrorCampo('vencimiento', 'errorVencimiento', 'Formato inválido. Use MM/AA.');
+            hayError = true;
+        } else {
+            const [mes, anio] = vencimiento.split('/').map(Number);
+            const fechaVenc = new Date(2000 + anio, mes);
+            if (fechaVenc < new Date()) {
+                mostrarErrorCampo('vencimiento', 'errorVencimiento', 'La tarjeta está vencida.');
+                hayError = true;
+            }
+        }
+        if (!/^\d{3,4}$/.test(cvv)) {
+            mostrarErrorCampo('cvv', 'errorCvv', 'El CVV debe contener 3 ó 4 dígitos numéricos.');
+            hayError = true;
+        }
+
+        if (hayError) return;
+
+        const boton = document.getElementById('btnPagar');
+        boton.disabled = true;
+        boton.textContent = 'Procesando pago...';
 
         try {
             const respuesta = await fetch('/api/pagos', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(datos)
+                headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+                body: JSON.stringify({
+                    citaId: citaId,
+                    monto: MONTO,
+                    metodoPago: 'TARJETA',
+                    numeroTarjeta: numeroTarjeta,
+                    nombreTitular: nombreTitular,
+                    fechaVencimiento: vencimiento,
+                    cvv: cvv
+                })
             });
             const resultado = await respuesta.json();
 
             if (!respuesta.ok) {
-                mensaje.textContent = resultado.error || 'No se pudo procesar el pago.';
+                mensaje.textContent = resultado.error || 'El pago no pudo ser procesado. Por favor, intente nuevamente o utilice otra tarjeta.';
                 mensaje.className = 'error';
+                boton.disabled = false;
+                boton.textContent = `Pagar Q${MONTO.toFixed(2)}`;
                 return;
             }
 
-            mensaje.textContent = 'Pago registrado. La cita ha sido confirmada.';
-            mensaje.className = 'exito';
-            setTimeout(() => { window.location.href = '/mis-citas.html'; }, 1800);
+            clearInterval(intervaloTemporizador);
+            sessionStorage.removeItem(claveTemporizador);
+
+            window.location.href = `/confirmacion-pago.html?pagoId=${resultado.id}`;
 
         } catch (error) {
-            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.textContent = 'Error de comunicación con la pasarela de pago. Intente nuevamente en unos minutos.';
             mensaje.className = 'error';
+            boton.disabled = false;
+            boton.textContent = `Pagar Q${MONTO.toFixed(2)}`;
         }
     }
 </script>
