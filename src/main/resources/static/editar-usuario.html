@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar Usuario</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 420px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; }
+        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .error-campo { border-color: #c53030 !important; }
+        button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        button:hover { background: #2c5282; }
+        button.cancelar { background: #718096; margin-top: 10px; }
+        button.cancelar:hover { background: #4a5568; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; }
+        .exito { color: #2f855a; }
+        #camposMedico { display: none; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Editar Usuario</h2>
+
+    <label for="rol">Rol</label>
+    <select id="rol">
+        <option value="MEDICO">Médico</option>
+        <option value="ENFERMERO">Enfermería</option>
+        <option value="RECEPCIONISTA">Recepcionista</option>
+        <option value="CAJERO">Cajero</option>
+        <option value="LABORATORISTA">Laboratorista</option>
+        <option value="FARMACEUTICO">Farmacéutico</option>
+        <option value="ADMINISTRADOR">Administrador</option>
+        <option value="PACIENTE">Paciente</option>
+    </select>
+
+    <label for="nombreCompleto">Nombre completo</label>
+    <input type="text" id="nombreCompleto">
+
+    <label for="correo">Correo</label>
+    <input type="email" id="correo">
+
+    <label for="username">Nombre de usuario</label>
+    <input type="text" id="username">
+
+    <label for="password">Nueva contraseña (opcional)</label>
+    <input type="password" id="password" placeholder="Dejar en blanco para no cambiar">
+
+    <label for="dpi">DPI</label>
+    <input type="text" id="dpi" maxlength="13">
+
+    <label for="telefono">Teléfono</label>
+    <input type="text" id="telefono">
+
+    <label for="nit">NIT</label>
+    <input type="text" id="nit">
+
+    <label for="numeroSeguro">Número de seguro</label>
+    <input type="text" id="numeroSeguro">
+
+    <div id="camposMedico">
+        <label for="sucursal">Sucursal</label>
+        <select id="sucursal"><option value="">Sin cambio</option></select>
+
+        <label for="especialidad">Especialidad</label>
+        <select id="especialidad"><option value="">Sin cambio</option></select>
+    </div>
+
+    <label for="estado">Estado</label>
+    <select id="estado">
+        <option value="true">Activo</option>
+        <option value="false">Inactivo</option>
+    </select>
+
+    <button onclick="actualizarUsuario()">Actualizar</button>
+    <button class="cancelar" onclick="window.location.href='/listar-usuarios.html'">Cancelar</button>
+    <div id="mensaje"></div>
+</div>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const userId = params.get('id');
+
+    if (!userId) {
+        window.location.href = '/listar-usuarios.html';
+    }
+
+    const selectRol = document.getElementById('rol');
+    selectRol.addEventListener('change', () => {
+        document.getElementById('camposMedico').style.display = selectRol.value === 'MEDICO' ? 'block' : 'none';
+    });
+
+    async function cargarDatos() {
+        const usuario = await fetch(`/api/usuarios/${userId}`).then(r => r.json());
+
+        document.getElementById('nombreCompleto').value = usuario.nombreCompleto || '';
+        document.getElementById('correo').value = usuario.correo || '';
+        document.getElementById('username').value = usuario.username || '';
+        document.getElementById('dpi').value = usuario.dpi || '';
+        document.getElementById('telefono').value = usuario.telefono || '';
+        document.getElementById('nit').value = usuario.nit || '';
+        document.getElementById('numeroSeguro').value = usuario.numeroSeguro || '';
+        document.getElementById('rol').value = usuario.rol;
+        document.getElementById('estado').value = usuario.activo ? 'true' : 'false';
+
+        if (usuario.rol === 'MEDICO') {
+            document.getElementById('camposMedico').style.display = 'block';
+        }
+
+        const sucursales = await fetch('/api/sucursales/activas').then(r => r.json());
+        const especialidades = await fetch('/api/especialidades/activas').then(r => r.json());
+
+        const selectSucursal = document.getElementById('sucursal');
+        sucursales.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.nombre;
+            if (usuario.sucursal && usuario.sucursal.id === s.id) opt.selected = true;
+            selectSucursal.appendChild(opt);
+        });
+
+        const selectEspecialidad = document.getElementById('especialidad');
+        especialidades.forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.nombre;
+            if (usuario.especialidad && usuario.especialidad.id === e.id) opt.selected = true;
+            selectEspecialidad.appendChild(opt);
+        });
+    }
+
+    async function actualizarUsuario() {
+        const mensaje = document.getElementById('mensaje');
+        mensaje.textContent = '';
+        mensaje.className = '';
+
+        const datos = {
+            nombreCompleto: document.getElementById('nombreCompleto').value.trim(),
+            correo: document.getElementById('correo').value.trim(),
+            username: document.getElementById('username').value.trim(),
+            dpi: document.getElementById('dpi').value.trim(),
+            telefono: document.getElementById('telefono').value.trim(),
+            nit: document.getElementById('nit').value.trim(),
+            numeroSeguro: document.getElementById('numeroSeguro').value.trim(),
+            rol: selectRol.value,
+            activo: document.getElementById('estado').value === 'true'
+        };
+
+        const password = document.getElementById('password').value;
+        if (password) {
+            datos.password = password;
+        }
+
+        if (selectRol.value === 'MEDICO') {
+            const sucursalId = document.getElementById('sucursal').value;
+            const especialidadId = document.getElementById('especialidad').value;
+            if (sucursalId) datos.sucursal = { id: sucursalId };
+            if (especialidadId) datos.especialidad = { id: especialidadId };
+        }
+
+        try {
+            const respuesta = await fetch(`/api/usuarios/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            });
+            const resultado = await respuesta.json();
+
+            if (!respuesta.ok) {
+                mensaje.textContent = resultado.error || 'No se pudo actualizar el usuario.';
+                mensaje.className = 'error';
+                return;
+            }
+
+            mensaje.textContent = 'Usuario actualizado correctamente.';
+            mensaje.className = 'exito';
+            setTimeout(() => { window.location.href = '/listar-usuarios.html'; }, 1200);
+
+        } catch (error) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.className = 'error';
+        }
+    }
+
+    cargarDatos();
+</script>
+</body>
+</html>
