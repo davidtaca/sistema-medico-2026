@@ -34,6 +34,8 @@ public class UsuarioController {
             Usuario usuario = usuarioService.autenticar(
                     credenciales.get("username"), credenciales.get("password"));
             return ResponseEntity.ok(usuario);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.LOCKED).body(Map.of("error", e.getMessage(), "bloqueado", true));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
@@ -63,6 +65,11 @@ public class UsuarioController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         }
+    }
+    @GetMapping("/buscar")
+    public List<Usuario> buscarPorCampo(@RequestParam(required = false) String campo,
+                                        @RequestParam(required = false) String valor) {
+        return usuarioService.buscarPorCampo(campo, valor);
     }
 
     @PutMapping("/{id}")
