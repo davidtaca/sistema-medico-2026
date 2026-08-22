@@ -33,6 +33,8 @@ public class Cita {
     private EstadoCita estado = EstadoCita.PENDIENTE_PAGO;
 
     private boolean emergencia = false;
+    @Column(name = "documento_adjunto")
+    private String documentoAdjunto;
 
     public Cita() {}
     public Long getId() { return id; }
@@ -53,4 +55,6 @@ public class Cita {
     public void setEstado(EstadoCita estado) { this.estado = estado; }
     public boolean isEmergencia() { return emergencia; }
     public void setEmergencia(boolean emergencia) { this.emergencia = emergencia; }
+    public String getDocumentoAdjunto() { return documentoAdjunto; }
+    public void setDocumentoAdjunto(String documentoAdjunto) { this.documentoAdjunto = documentoAdjunto; }
 }
