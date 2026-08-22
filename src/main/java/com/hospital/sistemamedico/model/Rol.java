@@ -6,5 +6,7 @@ public enum Rol {
     PACIENTE,
     CAJERO,
     RECEPCIONISTA,
-    ENFERMERO
+    ENFERMERO,
+    LABORATORISTA,
+    FARMACEUTICO
 }
