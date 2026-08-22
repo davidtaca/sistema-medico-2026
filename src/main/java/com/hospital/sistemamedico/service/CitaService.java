@@ -23,7 +23,8 @@ public class CitaService {
     private EspecialidadService especialidadService;
 
     public Cita agendarCita(Long pacienteId, Long medicoId, Long sucursalId, Long especialidadId,
-                            java.time.LocalDateTime fechaHora, String motivoConsulta, boolean emergencia) {
+                            java.time.LocalDateTime fechaHora, String motivoConsulta, boolean emergencia,
+                            String documentoAdjunto) {
 
         Usuario paciente = usuarioService.buscarPorId(pacienteId);
         if (paciente.getRol() != Rol.PACIENTE) {
@@ -70,7 +71,7 @@ public class CitaService {
         cita.setEspecialidad(especialidad);
         cita.setFechaHora(fechaHora);
         cita.setMotivoConsulta(motivoConsulta);
-        cita.setEmergencia(emergencia);
+        cita.setDocumentoAdjunto(documentoAdjunto);
         cita.setEstado(EstadoCita.PENDIENTE_PAGO);
 
         return citaRepository.save(cita);
