@@ -21,4 +21,12 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     boolean existsByDpi(String dpi);
 
     java.util.List<Usuario> findByRol(Rol rol);
+
+    java.util.List<Usuario> findByNombreCompletoContainingIgnoreCase(String nombre);
+
+    java.util.List<Usuario> findByCorreoContainingIgnoreCase(String correo);
+
+    java.util.List<Usuario> findByUsernameContainingIgnoreCase(String username);
+
+    java.util.List<Usuario> findByDpiContaining(String dpi);
 }
