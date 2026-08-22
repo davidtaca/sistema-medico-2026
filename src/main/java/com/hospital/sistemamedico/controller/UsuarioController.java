@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import com.hospital.sistemamedico.service.EmailService;
 import java.util.List;
 import java.util.Map;
 
@@ -18,10 +18,16 @@ public class UsuarioController {
     @Autowired
     private UsuarioService usuarioService;
 
+    @Autowired
+    private EmailService emailService;
+
     @PostMapping
     public ResponseEntity<?> registrar(@RequestBody Usuario usuario) {
         try {
             Usuario creado = usuarioService.registrarUsuario(usuario);
+            if (creado.getRol() == com.hospital.sistemamedico.model.Rol.PACIENTE) {
+                emailService.enviarCorreoBienvenida(creado.getCorreo(), creado.getNombreCompleto());
+            }
             return ResponseEntity.status(HttpStatus.CREATED).body(creado);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
