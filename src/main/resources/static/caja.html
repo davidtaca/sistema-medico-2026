@@ -5,17 +5,22 @@
     <title>Cobro en Caja</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
-        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 450px; max-width: 100%; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 460px; max-width: 100%; }
         h2 { text-align: center; color: #2b6cb0; }
+        .alternar { display: flex; margin-top: 10px; border-radius: 6px; overflow: hidden; border: 1px solid #2b6cb0; }
+        .alternar button { flex: 1; padding: 8px; border: none; background: white; color: #2b6cb0; cursor: pointer; font-size: 13px; }
+        .alternar button.activo { background: #2b6cb0; color: white; }
         label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
         input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { padding: 10px 16px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; }
-        button:hover { background: #2c5282; }
+        button.buscar { padding: 10px 16px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; width: 100%; }
+        button.buscar:hover { background: #2c5282; }
         .cita { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top: 20px; }
         .cita p { margin: 4px 0; font-size: 14px; }
         .monto { font-size: 20px; font-weight: bold; color: #2b6cb0; }
-        .btn-cobrar { background: #2f855a; width: 100%; box-sizing: border-box; }
+        .btn-cobrar { background: #2f855a; width: 100%; box-sizing: border-box; padding: 10px; border: none; border-radius: 5px; color: white; cursor: pointer; margin-top: 10px; }
         .btn-cobrar:hover { background: #276749; }
+        .btn-nuevo { background: #718096; width: 100%; box-sizing: border-box; padding: 10px; border: none; border-radius: 5px; color: white; cursor: pointer; margin-top: 10px; }
+        .btn-nuevo:hover { background: #4a5568; }
         #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
         .error { color: #c53030; }
         .exito { color: #2f855a; font-weight: bold; }
@@ -27,9 +32,14 @@
 <div class="contenedor">
     <h2>Cobro en Caja</h2>
 
-    <label for="dpi">DPI del paciente</label>
-    <input type="text" id="dpi" maxlength="13" placeholder="13 dígitos">
-    <button onclick="buscar()">Buscar Cita Pendiente</button>
+    <div class="alternar">
+        <button id="btnPorDpi" class="activo" onclick="cambiarModo('DPI')">Por DPI</button>
+        <button id="btnPorCita" onclick="cambiarModo('CITA')">Por No. Cita</button>
+    </div>
+
+    <label id="etiquetaBusqueda" for="valorBusqueda">DPI del paciente</label>
+    <input type="text" id="valorBusqueda" maxlength="13" placeholder="13 dígitos">
+    <button class="buscar" onclick="buscar()">Buscar Cita Pendiente</button>
 
     <div id="resultado"></div>
     <div id="mensaje"></div>
@@ -38,9 +48,21 @@
 <script>
     const MONTO_CONSULTA = 150.00;
     let citaActual = null;
+    let modoBusqueda = 'DPI';
+
+    function cambiarModo(modo) {
+        modoBusqueda = modo;
+        document.getElementById('btnPorDpi').classList.toggle('activo', modo === 'DPI');
+        document.getElementById('btnPorCita').classList.toggle('activo', modo === 'CITA');
+        document.getElementById('etiquetaBusqueda').textContent = modo === 'DPI' ? 'DPI del paciente' : 'Número de cita';
+        document.getElementById('valorBusqueda').value = '';
+        document.getElementById('valorBusqueda').placeholder = modo === 'DPI' ? '13 dígitos' : 'Ej. 12';
+        document.getElementById('resultado').innerHTML = '';
+        document.getElementById('mensaje').textContent = '';
+    }
 
     async function buscar() {
-        const dpi = document.getElementById('dpi').value.trim();
+        const valor = document.getElementById('valorBusqueda').value.trim();
         const resultado = document.getElementById('resultado');
         const mensaje = document.getElementById('mensaje');
         resultado.innerHTML = '';
@@ -48,26 +70,35 @@
         mensaje.className = '';
         citaActual = null;
 
-        if (!dpi) {
-            mensaje.textContent = 'Ingrese el DPI del paciente.';
+        if (!valor) {
+            mensaje.textContent = 'Debe ingresar un número de cita o DPI para buscar.';
             mensaje.className = 'error';
             return;
         }
 
-        const respUsuario = await fetch(`/api/usuarios/dpi/${dpi}`);
-        const paciente = await respUsuario.json();
+        let pendiente = null;
+        let paciente = null;
 
-        if (!respUsuario.ok) {
-            mensaje.textContent = paciente.error;
-            mensaje.className = 'error';
-            return;
+        if (modoBusqueda === 'CITA') {
+            const respCita = await fetch(`/api/citas/${valor}`);
+            if (respCita.ok) {
+                const cita = await respCita.json();
+                if (cita.estado === 'PENDIENTE_PAGO') {
+                    pendiente = cita;
+                    paciente = cita.paciente;
+                }
+            }
+        } else {
+            const respUsuario = await fetch(`/api/usuarios/dpi/${valor}`);
+            if (respUsuario.ok) {
+                paciente = await respUsuario.json();
+                const citas = await fetch(`/api/citas/paciente/${paciente.id}`).then(r => r.json());
+                pendiente = citas.find(c => c.estado === 'PENDIENTE_PAGO');
+            }
         }
-
-        const citas = await fetch(`/api/citas/paciente/${paciente.id}`).then(r => r.json());
-        const pendiente = citas.find(c => c.estado === 'PENDIENTE_PAGO');
 
         if (!pendiente) {
-            mensaje.textContent = 'No se encontraron citas pendientes de pago para el criterio ingresado.';
+            mensaje.textContent = 'No hay citas pendientes de pago bajo los parámetros indicados.';
             mensaje.className = 'error';
             return;
         }
@@ -87,7 +118,9 @@
     <label for="metodoPago">Método de pago</label>
     <select id="metodoPago">
       <option value="EFECTIVO">Efectivo</option>
-      <option value="TARJETA">Visa / Mastercard / Débito</option>
+      <option value="VISA">Visa</option>
+      <option value="MASTERCARD">Mastercard</option>
+      <option value="DEBITO">Débito</option>
     </select>
 
     <div id="campoEfectivo">
@@ -129,30 +162,43 @@
             }
             const cambio = recibido - MONTO_CONSULTA;
             numeroTransaccion = `EFECTIVO-${Date.now()}`;
-
             document.getElementById('comprobante').innerHTML =
                 `<p>Monto recibido: Q${recibido.toFixed(2)}. Cambio a devolver: Q${cambio.toFixed(2)}.</p>`;
+
         } else {
+            // FA01: tarjeta (Visa/Mastercard/Débito) — últimos 4 dígitos como referencia
             const ultimos4 = document.getElementById('ultimos4').value.trim();
             if (ultimos4.length !== 4) {
                 mensaje.textContent = 'Ingrese los últimos 4 dígitos de la tarjeta.';
                 mensaje.className = 'error';
                 return;
             }
-            numeroTransaccion = `TARJETA-****${ultimos4}`;
+
+            // FA04: simulación de rechazo aleatorio del banco (10% de probabilidad, solo para fines de demostración académica)
+            const rechazado = Math.random() < 0.10;
+            if (rechazado) {
+                mensaje.textContent = 'La transacción con tarjeta fue rechazada por el banco. Solicite al paciente otro método de pago.';
+                mensaje.className = 'error';
+                return;
+            }
+
+            numeroTransaccion = `${metodo}-****${ultimos4}`;
         }
 
         try {
+            const metodoPagoBackend = metodo === 'EFECTIVO' ? 'EFECTIVO' : 'TARJETA';
+
             const respuesta = await fetch('/api/pagos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     citaId: citaActual.id,
                     monto: MONTO_CONSULTA,
-                    metodoPago: metodo,
+                    metodoPago: metodoPagoBackend,
                     numeroTransaccion: numeroTransaccion
                 })
             });
+
             const resultado = await respuesta.json();
 
             if (!respuesta.ok) {
@@ -168,10 +214,12 @@
       <div class="comprobante">
         <p><strong>Comprobante de Pago</strong></p>
         <p>No. Transacción: ${resultado.numeroTransaccion}</p>
+        <p>Paciente: ${nombrePaciente}</p>
         <p>Monto: Q${MONTO_CONSULTA.toFixed(2)}</p>
-        <p>Método: ${metodo}</p>
-        <p>Fecha: ${new Date(resultado.fechaPago).toLocaleString('es-GT')}</p>
+        <p>Forma de pago: ${metodo}</p>
+        <p>Fecha y hora: ${new Date(resultado.fechaPago).toLocaleString('es-GT')}</p>
       </div>
+      <button class="btn-nuevo" onclick="location.reload()">Nuevo Cobro</button>
     `;
 
         } catch (error) {
