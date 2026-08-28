@@ -24,7 +24,7 @@ public class CitaService {
 
     public Cita agendarCita(Long pacienteId, Long medicoId, Long sucursalId, Long especialidadId,
                             java.time.LocalDateTime fechaHora, String motivoConsulta, boolean emergencia,
-                            String documentoAdjunto) {
+                            String documentoAdjunto, boolean agendadaPorPaciente) {
 
         Usuario paciente = usuarioService.buscarPorId(pacienteId);
         if (paciente.getRol() != Rol.PACIENTE) {
@@ -71,7 +71,8 @@ public class CitaService {
         cita.setEspecialidad(especialidad);
         cita.setFechaHora(fechaHora);
         cita.setMotivoConsulta(motivoConsulta);
-        cita.setDocumentoAdjunto(documentoAdjunto);
+        cita.setAgendadaPorPaciente(agendadaPorPaciente);
+        cita.setFechaCreacion(java.time.LocalDateTime.now());
         cita.setEstado(EstadoCita.PENDIENTE_PAGO);
 
         return citaRepository.save(cita);
@@ -145,5 +146,16 @@ public class CitaService {
         }
         cita.setMedico(nuevoMedico);
         return citaRepository.save(cita);
+    }
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 60000)
+    public void cancelarCitasPendientesVencidas() {
+        java.time.LocalDateTime limite = java.time.LocalDateTime.now().minusMinutes(10);
+        java.util.List<Cita> pendientes = citaRepository.findByEstado(EstadoCita.PENDIENTE_PAGO);
+        for (Cita cita : pendientes) {
+            if (cita.isAgendadaPorPaciente() && cita.getFechaCreacion() != null && cita.getFechaCreacion().isBefore(limite)) {
+                cita.setEstado(EstadoCita.CANCELADA);
+                citaRepository.save(cita);
+            }
+        }
     }
 }
