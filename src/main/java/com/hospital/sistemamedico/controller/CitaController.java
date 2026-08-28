@@ -40,7 +40,8 @@ public class CitaController {
                     LocalDateTime.parse(datos.get("fechaHora").toString()),
                     datos.get("motivoConsulta") != null ? datos.get("motivoConsulta").toString() : null,
                     datos.get("emergencia") != null && Boolean.parseBoolean(datos.get("emergencia").toString()),
-                    datos.get("documentoAdjunto") != null ? datos.get("documentoAdjunto").toString() : null
+                    datos.get("documentoAdjunto") != null ? datos.get("documentoAdjunto").toString() : null,
+                    datos.get("esWalkIn") == null || !Boolean.parseBoolean(datos.get("esWalkIn").toString())
             );
 
             return ResponseEntity.status(HttpStatus.CREATED).body(cita);
