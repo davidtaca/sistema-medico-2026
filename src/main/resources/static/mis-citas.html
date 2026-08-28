@@ -53,6 +53,7 @@
             const fecha = new Date(c.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
 
             div.innerHTML = `
+      <p><strong>No. Cita:</strong> ${c.id}</p>
       <p><strong>Médico:</strong> ${c.medico.nombreCompleto}</p>
       <p><strong>Especialidad:</strong> ${c.especialidad.nombre}</p>
       <p><strong>Sucursal:</strong> ${c.sucursal.nombre}</p>
