@@ -128,4 +128,22 @@ public class CitaService {
         cita.setEmergencia(emergencia || cita.isEmergencia());
         return citaRepository.save(cita);
     }
+    public Cita reasignarMedico(Long citaId, Long nuevoMedicoId) {
+        Cita cita = buscarPorId(citaId);
+        if (cita.getEstado() != EstadoCita.CONFIRMADA && cita.getEstado() != EstadoCita.PACIENTE_PRESENTE) {
+            throw new IllegalArgumentException("Solo se puede reasignar el médico de citas en estado Confirmada o Paciente Presente.");
+        }
+        Usuario nuevoMedico = usuarioService.buscarPorId(nuevoMedicoId);
+        if (nuevoMedico.getRol() != Rol.MEDICO) {
+            throw new IllegalArgumentException("El usuario indicado no es un médico.");
+        }
+        if (nuevoMedico.getEspecialidad() == null || !nuevoMedico.getEspecialidad().getId().equals(cita.getEspecialidad().getId())) {
+            throw new IllegalArgumentException("El médico seleccionado no pertenece a la especialidad de la cita.");
+        }
+        if (nuevoMedico.getSucursal() == null || !nuevoMedico.getSucursal().getId().equals(cita.getSucursal().getId())) {
+            throw new IllegalArgumentException("El médico seleccionado no pertenece a la sucursal de la cita.");
+        }
+        cita.setMedico(nuevoMedico);
+        return citaRepository.save(cita);
+    }
 }
