@@ -35,6 +35,10 @@ public class Cita {
     private boolean emergencia = false;
     @Column(name = "documento_adjunto")
     private String documentoAdjunto;
+    @Column(name = "agendada_por_paciente", nullable = false)
+    private boolean agendadaPorPaciente = true;
+    @Column(name = "fecha_creacion")
+    private java.time.LocalDateTime fechaCreacion = java.time.LocalDateTime.now();
 
     public Cita() {}
     public Long getId() { return id; }
@@ -57,4 +61,8 @@ public class Cita {
     public void setEmergencia(boolean emergencia) { this.emergencia = emergencia; }
     public String getDocumentoAdjunto() { return documentoAdjunto; }
     public void setDocumentoAdjunto(String documentoAdjunto) { this.documentoAdjunto = documentoAdjunto; }
+    public boolean isAgendadaPorPaciente() { return agendadaPorPaciente; }
+    public void setAgendadaPorPaciente(boolean agendadaPorPaciente) { this.agendadaPorPaciente = agendadaPorPaciente; }
+    public java.time.LocalDateTime getFechaCreacion() { return fechaCreacion; }
+    public void setFechaCreacion(java.time.LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
 }
