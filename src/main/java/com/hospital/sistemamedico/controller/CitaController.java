@@ -56,6 +56,7 @@ public class CitaController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+
     }
 
     @PostMapping("/documento")
@@ -121,6 +122,15 @@ public class CitaController {
     public ResponseEntity<?> cancelar(@PathVariable Long id) {
         try {
             return ResponseEntity.ok(citaService.cancelarCita(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    @PutMapping("/{id}/reasignar-medico")
+    public ResponseEntity<?> reasignarMedico(@PathVariable Long id, @RequestBody Map<String, Object> datos) {
+        try {
+            Long nuevoMedicoId = Long.valueOf(datos.get("medicoId").toString());
+            return ResponseEntity.ok(citaService.reasignarMedico(id, nuevoMedicoId));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
