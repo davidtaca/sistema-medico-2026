@@ -11,6 +11,13 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Servicio con la lógica de negocio de los pagos de citas médicas.
+ * Cubre tanto el pago en línea con tarjeta (CU-04) como el cobro presencial
+ * en caja, en efectivo o tarjeta (CU-06). Un mismo método registrarPago
+ * atiende ambos flujos, distinguiendo el caso según si viene o no el número
+ * completo de la tarjeta.
+ */
 @Service
 public class PagoService {
 
@@ -20,14 +27,24 @@ public class PagoService {
     @Autowired
     private CitaService citaService;
 
+    /**
+     * Valida un número de tarjeta usando el algoritmo de Luhn (el mismo
+     * algoritmo que usan los bancos y pasarelas de pago reales para detectar
+     * errores de digitación en el número de tarjeta, aunque no reemplaza una
+     * validación bancaria real).
+     *
+     * @param numero número de tarjeta compuesto únicamente por dígitos
+     * @return true si el número pasa la validación de Luhn (dígito de control correcto)
+     */
     private boolean esNumeroTarjetaValido(String numero) {
         int suma = 0;
         boolean alternar = false;
+        // Se recorre el número de derecha a izquierda, duplicando cada segundo dígito
         for (int i = numero.length() - 1; i >= 0; i--) {
             int digito = Character.getNumericValue(numero.charAt(i));
             if (alternar) {
                 digito *= 2;
-                if (digito > 9) digito -= 9;
+                if (digito > 9) digito -= 9; // si el doble supera 9, se restan 9 (equivale a sumar sus dígitos)
             }
             suma += digito;
             alternar = !alternar;
@@ -35,6 +52,32 @@ public class PagoService {
         return suma % 10 == 0;
     }
 
+    /**
+     * Registra el pago de una cita, ya sea en línea con tarjeta (CU-04) o
+     * presencial en caja (CU-06). Actualiza automáticamente el estado de la
+     * cita a CONFIRMADA al finalizar.
+     *
+     * Si se recibe un número de tarjeta completo (numeroTarjeta != null),
+     * se asume que es un pago en línea y se validan a fondo todos los datos
+     * de la tarjeta (número con Luhn, titular, vencimiento, CVV), generando
+     * internamente un número de transacción único. Si no se recibe número de
+     * tarjeta completo pero el método es TARJETA, se asume que es un cobro
+     * presencial en caja, donde solo se exige el número de transacción
+     * (que en ese flujo contiene los últimos 4 dígitos como referencia).
+     *
+     * @param citaId id de la cita a pagar
+     * @param monto monto a cobrar
+     * @param metodoPago EFECTIVO, TARJETA o TRANSFERENCIA
+     * @param numeroTransaccion referencia de transacción (usada tal cual en pagos de caja;
+     *        se sobreescribe con un número generado automáticamente en pagos en línea)
+     * @param numeroTarjeta número completo de la tarjeta (solo en pago en línea, CU-04); null en pagos de caja
+     * @param nombreTitular nombre del titular de la tarjeta (solo pago en línea)
+     * @param fechaVencimiento fecha de vencimiento en formato MM/AA (solo pago en línea)
+     * @param cvv código de seguridad de la tarjeta, nunca se guarda (solo pago en línea)
+     * @return el Pago registrado
+     * @throws IllegalArgumentException si la cita está cancelada, ya tiene un pago
+     *         registrado, o algún dato de la tarjeta no es válido
+     */
     public Pago registrarPago(Long citaId, BigDecimal monto, MetodoPago metodoPago, String numeroTransaccion,
                               String numeroTarjeta, String nombreTitular, String fechaVencimiento, String cvv) {
         Cita cita = citaService.buscarPorId(citaId);
@@ -66,12 +109,15 @@ public class PagoService {
             if (cvv == null || !cvv.matches("^\\d{3,4}$")) {
                 throw new IllegalArgumentException("El CVV debe contener 3 ó 4 dígitos numéricos.");
             }
+            // El número de transacción de un pago en línea siempre se genera internamente,
+            // nunca lo escribe el usuario
             numeroTransaccion = "TXN-" + java.util.UUID.randomUUID().toString().substring(0, 12).toUpperCase();
         }
 
         if (metodoPago == MetodoPago.TARJETA && numeroTarjeta == null
                 && (numeroTransaccion == null || numeroTransaccion.isBlank())) {
             // Pago presencial en caja (CU-06): solo exige el número de transacción
+            // (que en ese flujo ya viene armado con los últimos 4 dígitos de la tarjeta)
             throw new IllegalArgumentException("Se requiere número de transacción para pagos con tarjeta.");
         }
 
@@ -84,16 +130,32 @@ public class PagoService {
 
         Pago pagoGuardado = pagoRepository.save(pago);
 
+        // Al completarse el pago, la cita pasa automáticamente a estado Confirmada
         citaService.confirmarCita(citaId);
 
         return pagoGuardado;
     }
 
+    /**
+     * Busca el pago asociado a una cita específica.
+     *
+     * @param citaId id de la cita
+     * @return el Pago encontrado
+     * @throws IllegalArgumentException si esa cita no tiene ningún pago registrado
+     */
     public Pago buscarPorCita(Long citaId) {
         return pagoRepository.findByCitaId(citaId)
                 .orElseThrow(() -> new IllegalArgumentException("No hay pago registrado para esta cita."));
     }
 
+    /**
+     * Busca un pago por su propio id. Usado en la pantalla de confirmación
+     * de pago (confirmacion-pago.html) para mostrar el comprobante.
+     *
+     * @param id id del pago
+     * @return el Pago encontrado
+     * @throws IllegalArgumentException si no existe ningún pago con ese id
+     */
     public Pago buscarPorId(Long id) {
         return pagoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Pago no encontrado."));
