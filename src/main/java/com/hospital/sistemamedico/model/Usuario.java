@@ -3,6 +3,17 @@ package com.hospital.sistemamedico.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entidad que representa a CUALQUIER usuario del sistema: tanto personal
+ * interno (médicos, enfermeras, cajeros, recepcionistas, laboratoristas,
+ * farmacéuticos, administradores) como pacientes. Se usa una sola tabla
+ * "usuarios" con el campo "rol" para distinguirlos, en vez de tablas
+ * separadas, porque ambos tipos comparten casi todos los mismos campos
+ * (nombre, correo, username, contraseña, DPI, teléfono).
+ *
+ * Los campos "sucursal" y "especialidad" solo se llenan cuando el rol es
+ * MEDICO; para el resto de roles (incluyendo PACIENTE) quedan en null.
+ */
 @Entity
 @Table(name = "usuarios")
 public class Usuario {
@@ -37,10 +48,12 @@ public class Usuario {
     @Column(name = "numero_seguro")
     private String numeroSeguro;
 
+    /** Solo aplica si rol = MEDICO: sucursal donde atiende. */
     @ManyToOne
     @JoinColumn(name = "sucursal_id")
     private Sucursal sucursal;
 
+    /** Solo aplica si rol = MEDICO: especialidad que ejerce. */
     @ManyToOne
     @JoinColumn(name = "especialidad_id")
     private Especialidad especialidad;
@@ -48,14 +61,17 @@ public class Usuario {
     @Column(nullable = false)
     private boolean activo = true;
 
+    /** Contador de intentos de login fallidos consecutivos (CU-00, RN-CU00-02). Se reinicia al iniciar sesión con éxito. */
     @Column(name = "intentos_fallidos", nullable = false)
     private int intentosFallidos = 0;
 
+    /** Fecha y hora hasta la cual la cuenta queda bloqueada tras exceder el máximo de intentos fallidos (CU-00, RN-CU00-03). Null si la cuenta no está bloqueada. */
     @Column(name = "bloqueado_hasta")
     private LocalDateTime bloqueadoHasta;
 
     public Usuario() {}
 
+    // Getters y setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getNombreCompleto() { return nombreCompleto; }
@@ -87,4 +103,3 @@ public class Usuario {
     public LocalDateTime getBloqueadoHasta() { return bloqueadoHasta; }
     public void setBloqueadoHasta(LocalDateTime bloqueadoHasta) { this.bloqueadoHasta = bloqueadoHasta; }
 }
-
