@@ -2,6 +2,11 @@ package com.hospital.sistemamedico.model;
 
 import jakarta.persistence.*;
 
+/**
+ * Entidad que representa una sucursal (sede física) del hospital. Cada
+ * médico atiende en exactamente una sucursal, y cada cita se agenda en
+ * una sucursal específica.
+ */
 @Entity
 @Table(name = "sucursales")
 public class Sucursal {
@@ -12,6 +17,7 @@ public class Sucursal {
     @Column(nullable = false, unique = true)
     private String nombre;
 
+    /** false = sucursal dada de baja (eliminación lógica), no aparece en los formularios. */
     @Column(nullable = false)
     private boolean activo = true;
 
