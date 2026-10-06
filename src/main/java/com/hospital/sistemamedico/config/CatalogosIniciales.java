@@ -2,10 +2,14 @@ package com.hospital.sistemamedico.config;
 
 import com.hospital.sistemamedico.model.Cie10;
 import com.hospital.sistemamedico.model.Examen;
+import com.hospital.sistemamedico.model.InventarioMedicamento;
 import com.hospital.sistemamedico.model.Medicamento;
+import com.hospital.sistemamedico.model.Sucursal;
 import com.hospital.sistemamedico.repository.Cie10Repository;
 import com.hospital.sistemamedico.repository.ExamenRepository;
+import com.hospital.sistemamedico.repository.InventarioMedicamentoRepository;
 import com.hospital.sistemamedico.repository.MedicamentoRepository;
+import com.hospital.sistemamedico.repository.SucursalRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -31,6 +35,12 @@ public class CatalogosIniciales implements CommandLineRunner {
 
     @Autowired
     private MedicamentoRepository medicamentoRepository;
+
+    @Autowired
+    private InventarioMedicamentoRepository inventarioRepository;
+
+    @Autowired
+    private SucursalRepository sucursalRepository;
 
     /** Examen del catálogo inicial: monto en quetzales, unidad y rango de referencia de ejemplo. */
     private record DatosExamen(String nombre, BigDecimal precio, String unidad, String rango) {
@@ -60,6 +70,38 @@ public class CatalogosIniciales implements CommandLineRunner {
             ex("Prueba rápida de dengue", "120", "N/A", "Negativo"),
             ex("Urocultivo", "100", "UFC/mL", "< 10,000"),
             ex("Tiempo de protrombina (TP/TPT)", "85", "seg", "11 - 13.5")
+    );
+
+    /** Medicamento del catálogo inicial: precio en quetzales, stock mínimo y stock inicial de ejemplo (null = sin inventario). */
+    private record DatosMedicamento(String nombre, BigDecimal precio, Integer minimo, Integer stock) {
+        Medicamento aMedicamento() { return new Medicamento(nombre, precio, minimo); }
+    }
+
+    private static DatosMedicamento med(String nombre, String precio, int minimo, Integer stock) {
+        return new DatosMedicamento(nombre, new BigDecimal(precio), minimo, stock);
+    }
+
+    private static final List<DatosMedicamento> MEDICAMENTOS = List.of(
+            med("Acetaminofén 500 mg", "8", 20, 200),
+            med("Ibuprofeno 400 mg", "10", 20, 150),
+            med("Diclofenaco 50 mg", "12", 15, 100),
+            med("Amoxicilina 500 mg", "25", 20, 80),
+            med("Azitromicina 500 mg", "45", 10, 40),
+            med("Ciprofloxacino 500 mg", "30", 10, 60),
+            med("Metronidazol 500 mg", "18", 10, 70),
+            med("Omeprazol 20 mg", "15", 15, 90),
+            med("Loratadina 10 mg", "12", 10, 80),
+            med("Salbutamol inhalador", "65", 5, 25),
+            med("Losartán 50 mg", "20", 15, 100),
+            med("Enalapril 10 mg", "14", 15, 100),
+            med("Metformina 850 mg", "16", 15, 120),
+            med("Glibenclamida 5 mg", "12", 10, 60),
+            med("Atorvastatina 20 mg", "35", 10, 70),
+            med("Levotiroxina 50 mcg", "40", 10, 50),
+            med("Sales de rehidratación oral", "6", 20, 100),
+            med("Albendazol 400 mg", "22", 10, 12),
+            med("Ranitidina 150 mg", "14", 10, null),
+            med("Dexametasona 4 mg", "18", 10, null)
     );
 
     @Override
@@ -133,14 +175,30 @@ public class CatalogosIniciales implements CommandLineRunner {
         }
 
         if (medicamentoRepository.count() == 0) {
-            medicamentoRepository.saveAll(Stream.of(
-                    "Acetaminofén 500 mg", "Ibuprofeno 400 mg", "Diclofenaco 50 mg", "Amoxicilina 500 mg",
-                    "Azitromicina 500 mg", "Ciprofloxacino 500 mg", "Metronidazol 500 mg",
-                    "Omeprazol 20 mg", "Loratadina 10 mg", "Salbutamol inhalador", "Losartán 50 mg",
-                    "Enalapril 10 mg", "Metformina 850 mg", "Glibenclamida 5 mg", "Atorvastatina 20 mg",
-                    "Levotiroxina 50 mcg", "Sales de rehidratación oral", "Albendazol 400 mg",
-                    "Ranitidina 150 mg", "Dexametasona 4 mg"
-            ).map(Medicamento::new).toList());
+            medicamentoRepository.saveAll(MEDICAMENTOS.stream().map(d -> d.aMedicamento()).toList());
+        } else {
+            // Catálogo creado antes de que los medicamentos tuvieran precio y stock mínimo (CU-11)
+            for (Medicamento m : medicamentoRepository.findAll()) {
+                if (m.getPrecio() == null) {
+                    DatosMedicamento d = MEDICAMENTOS.stream().filter(x -> x.nombre.equals(m.getNombre())).findFirst().orElse(null);
+                    m.setPrecio(d != null ? d.precio : new BigDecimal("25"));
+                    m.setStockMinimo(d != null ? d.minimo : Integer.valueOf(10));
+                    medicamentoRepository.save(m);
+                }
+            }
+        }
+
+        // Inventario inicial de ejemplo en cada sucursal, solo si todavía no existe ninguno (CU-11).
+        // Ranitidina y Dexametasona quedan sin inventario a propósito para poder ver el caso "Sin inventario registrado".
+        if (inventarioRepository.count() == 0) {
+            for (Sucursal sucursal : sucursalRepository.findAll()) {
+                for (DatosMedicamento d : MEDICAMENTOS) {
+                    if (d.stock != null) {
+                        medicamentoRepository.findAll().stream().filter(m -> m.getNombre().equals(d.nombre)).findFirst()
+                                .ifPresent(m -> inventarioRepository.save(new InventarioMedicamento(m, sucursal, d.stock)));
+                    }
+                }
+            }
         }
     }
 }

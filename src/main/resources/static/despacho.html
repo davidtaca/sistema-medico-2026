@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Despacho de Medicamentos</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 860px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        h3 { color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px; }
+        .filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+        label { font-size: 12px; color: #4a5568; display: block; }
+        input[type=text], input[type=number], textarea, select { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; margin-top: 3px; box-sizing: border-box; font-family: inherit; }
+        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover:not(:disabled) { background: #2c5282; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        button.verde { background: #2f855a; } button.verde:hover:not(:disabled) { background: #276749; }
+        button.gris { background: #718096; } button.gris:hover:not(:disabled) { background: #4a5568; }
+        button.rojo { background: #c53030; } button.rojo:hover:not(:disabled) { background: #9b2c2c; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+        th { background: #ebf4ff; color: #2b6cb0; text-align: left; padding: 8px; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; color: white; }
+        .badge.vigente { background: #2f855a; } .badge.vencida { background: #c53030; }
+        .inv-DISPONIBLE { color: #2f855a; } .inv-STOCK_BAJO { color: #b7791f; font-weight: bold; } .inv-SIN_INVENTARIO { color: #c53030; font-weight: bold; }
+        .total { text-align: right; font-size: 20px; font-weight: bold; color: #2b6cb0; margin-top: 14px; }
+        .acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; justify-content: flex-end; }
+        .sust { margin-top: 8px; padding: 8px; background: #fffaf0; border-left: 3px solid #b7791f; border-radius: 4px; }
+        .sust textarea { width: 100%; min-height: 40px; }
+        .sust select { width: 100%; }
+        .aviso-sust { font-size: 12px; color: #b7791f; margin-top: 6px; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; } .info { color: #b7791f; }
+        .alerta { background: #fff5f5; border-left: 4px solid #c53030; color: #c53030; padding: 9px 12px; margin-top: 8px; font-size: 13px; border-radius: 4px; }
+        .sustituido { background: #fffaf0; border-left: 4px solid #b7791f; padding: 9px 12px; margin-top: 8px; font-size: 13px; border-radius: 4px; }
+        .oculto { display: none; }
+        a.salir { display: block; text-align: center; margin-top: 25px; color: #718096; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Despacho de Medicamentos</h2>
+    <div id="mensaje"></div>
+
+    <!-- Paso 2: búsqueda de recetas -->
+    <div id="vistaBusqueda">
+        <div class="filtros">
+            <div><label for="fReceta">ID de Receta</label><input type="text" id="fReceta" maxlength="12" inputmode="numeric"></div>
+            <div><label for="fConsulta">ID de Consulta</label><input type="text" id="fConsulta" maxlength="12" inputmode="numeric"></div>
+            <button onclick="buscar()">Buscar</button>
+        </div>
+        <div id="resultados"></div>
+    </div>
+
+    <!-- Pasos 4 a 9: detalle del despacho -->
+    <div id="vistaDetalle" class="oculto"></div>
+
+    <!-- Pasos 11 y 12: resumen -->
+    <div id="vistaResumen" class="oculto"></div>
+
+    <a class="salir" href="/farmacia.html">← Volver al Panel de Farmacia</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'FARMACEUTICO' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de farmacia.');
+        window.location.href = '/index.html';
+    }
+
+    const mensaje = document.getElementById('mensaje');
+    let detalle = null;
+    let catalogo = [];
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+    const q = n => 'Q' + Number(n).toFixed(2);
+    function mostrar(texto, clase) { mensaje.textContent = texto; mensaje.className = clase || ''; }
+    function vista(nombre) {
+        ['Busqueda', 'Detalle', 'Resumen'].forEach(v => document.getElementById('vista' + v).classList.toggle('oculto', v !== nombre));
+    }
+
+    async function buscar() {
+        mostrar('');
+        const params = new URLSearchParams({ recetaId: document.getElementById('fReceta').value.trim(), consultaId: document.getElementById('fConsulta').value.trim() });
+        const r = await fetch('/api/despachos/recetas?' + params);
+        const recetas = await r.json();
+        if (!r.ok) { mostrar(recetas.error, 'error'); return; }
+        const cont = document.getElementById('resultados');
+        if (recetas.length === 0) {
+            cont.innerHTML = '';
+            mostrar('No se encontraron recetas activas con los criterios indicados.', 'info');
+            return;
+        }
+        cont.innerHTML = `<table><thead><tr><th>ID</th><th>Consulta</th><th>Paciente</th><th>Fecha de emisión</th><th>Vigencia</th><th>Notas</th><th></th></tr></thead><tbody>` +
+            recetas.map(x => `<tr>
+                <td>#${x.id}</td><td>${x.consultaId != null ? '#' + x.consultaId : '—'}</td><td>${esc(x.paciente)}</td>
+                <td>${new Date(x.fechaEmision).toLocaleDateString('es-GT')}</td>
+                <td>${x.vigente ? `<span class="badge vigente">Vigente</span> (${x.diasTranscurridos} día(s))` : `<span class="badge vencida">Vencida</span> (hace ${x.diasTranscurridos} días)`}</td>
+                <td>${esc(x.notas || '—')}<br><small>${x.medicamentos.map(esc).join(', ')}</small></td>
+                <td><button ${x.vigente ? '' : 'disabled title="Receta vencida"'} onclick="despachar(${x.id})">Despachar</button></td></tr>`).join('') + '</tbody></table>';
+    }
+
+    // Pasos 3 a 5
+    async function despachar(recetaId) {
+        mostrar('');
+        const r = await fetch(`/api/despachos/recetas/${recetaId}?farmaceuticoId=${usuario.id}`);
+        const datos = await r.json();
+        if (!r.ok) { mostrar(datos.error, 'error'); return; }
+        if (catalogo.length === 0) catalogo = await fetch('/api/consultas/medicamentos').then(x => x.json());
+        detalle = datos;
+        pintarDetalle();
+        vista('Detalle');
+    }
+
+    function pintarDetalle() {
+        const d = detalle;
+        let html = `<h3>Receta #${d.recetaId} — ${esc(d.paciente)}</h3>
+            <p style="font-size:13px;color:#4a5568;">Médico: ${esc(d.medico)} · Emitida hace ${d.diasTranscurridos} día(s) · Inventario de: <strong>${esc(d.sucursal)}</strong></p>
+            <table><thead><tr><th>Medicamento</th><th>Precio unit.</th><th>Inventario</th><th>Cantidad</th><th>Sustitución</th><th>Subtotal</th></tr></thead><tbody>`;
+        d.items.forEach((i, idx) => {
+            const sinInv = i.estadoInventario === 'SIN_INVENTARIO';
+            html += `<tr id="fila-${idx}">
+                <td><strong>${esc(i.medicamento)}</strong><br><small>${esc(i.dosis)} · ${esc(i.frecuencia)} · ${esc(i.duracion)}${i.indicaciones ? '<br>' + esc(i.indicaciones) : ''}</small></td>
+                <td id="precio-${idx}">${q(i.precioUnitario)}</td>
+                <td class="inv-${i.estadoInventario}">${esc(i.mensajeInventario)}</td>
+                <td><input type="number" id="cant-${idx}" min="0" ${sinInv ? '' : `max="${i.disponible}"`} value="${sinInv ? 0 : i.cantidadSugerida}" style="width:70px;" oninput="recalcular()"></td>
+                <td><label style="display:flex;gap:5px;align-items:center;"><input type="checkbox" id="sust-${idx}" onchange="alternarSust(${idx})"> Sustituir</label>
+                    <div id="bloqueSust-${idx}" class="sust oculto">
+                        <label>Medicamento alternativo
+                            <select id="alt-${idx}" onchange="recalcular()"><option value="">Seleccione...</option>
+                                ${catalogo.filter(c => c.id !== i.medicamentoId).map(c => `<option value="${c.id}">${esc(c.nombre)} (${q(c.precio)})</option>`).join('')}</select></label>
+                        <label>Razón de sustitución <span style="color:#c53030;">*</span>
+                            <textarea id="razon-${idx}" maxlength="500" oninput="recalcular()"></textarea></label>
+                        <div class="aviso-sust" id="avisoSust-${idx}"></div>
+                    </div></td>
+                <td id="sub-${idx}">${q(0)}</td></tr>`;
+        });
+        html += `</tbody></table>
+            <div class="total" id="total">Total del Despacho: ${q(0)}</div>
+            <div class="acciones">
+                <button class="gris" onclick="cancelar()">Cancelar</button>
+                <button class="rojo" onclick="noAdquirido()">El paciente no desea los medicamentos</button>
+                <button class="verde" onclick="confirmar()">Confirmar Despacho</button>
+            </div>`;
+        document.getElementById('vistaDetalle').innerHTML = html;
+        recalcular();
+    }
+
+    // FA02
+    function alternarSust(idx) {
+        document.getElementById('bloqueSust-' + idx).classList.toggle('oculto', !document.getElementById('sust-' + idx).checked);
+        recalcular();
+    }
+
+    // Paso 7: total en tiempo real (usa el precio del alternativo cuando hay sustitución)
+    function recalcular() {
+        let total = 0;
+        detalle.items.forEach((i, idx) => {
+            const cant = parseInt(document.getElementById('cant-' + idx).value, 10) || 0;
+            let precio = Number(i.precioUnitario);
+            const sust = document.getElementById('sust-' + idx).checked;
+            const altId = document.getElementById('alt-' + idx).value;
+            if (sust && altId) {
+                const alt = catalogo.find(c => String(c.id) === altId);
+                if (alt) precio = Number(alt.precio);
+                const razon = document.getElementById('razon-' + idx).value.trim();
+                document.getElementById('avisoSust-' + idx).textContent = razon
+                    ? `Medicamento ${i.medicamento} sustituido por ${alt ? alt.nombre : ''}. El médico tratante será notificado de la sustitución.` : '';
+            } else {
+                document.getElementById('avisoSust-' + idx).textContent = '';
+            }
+            document.getElementById('precio-' + idx).textContent = q(precio);
+            document.getElementById('sub-' + idx).textContent = q(precio * cant);
+            total += precio * cant;
+        });
+        document.getElementById('total').textContent = `Total del Despacho: ${q(total)}`;
+    }
+
+    function cancelar() {
+        detalle = null;
+        mostrar('');
+        vista('Busqueda');
+    }
+
+    // FA03
+    async function noAdquirido() {
+        if (!confirm('¿Registrar que el paciente no adquirió los medicamentos?')) return;
+        const r = await fetch('/api/despachos/no-adquirido', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recetaId: detalle.recetaId, farmaceuticoId: usuario.id }) });
+        const datos = await r.json();
+        if (!r.ok) { mostrar(datos.error, 'error'); return; }
+        detalle = null;
+        document.getElementById('resultados').innerHTML = '';
+        vista('Busqueda');
+        mostrar(datos.mensaje, 'info');
+    }
+
+    // Pasos 9 a 12
+    async function confirmar() {
+        mostrar('');
+        const items = detalle.items.map((i, idx) => {
+            const sust = document.getElementById('sust-' + idx).checked;
+            return {
+                recetaItemId: i.recetaItemId,
+                cantidad: document.getElementById('cant-' + idx).value || 0,
+                sustituir: sust,
+                medicamentoAlternativoId: sust ? document.getElementById('alt-' + idx).value : null,
+                razon: sust ? document.getElementById('razon-' + idx).value : null
+            };
+        });
+        const r = await fetch('/api/despachos/confirmar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recetaId: detalle.recetaId, farmaceuticoId: usuario.id, items }) });
+        const datos = await r.json();
+        if (!r.ok) { mostrar(datos.error, 'error'); return; }
+        pintarResumen(datos);
+        vista('Resumen');
+        mostrar(datos.mensaje, 'exito');
+    }
+
+    function pintarResumen(d) {
+        document.getElementById('vistaResumen').innerHTML = `
+            <h3>Resumen del despacho ${esc(d.numeroDespacho)} — ${esc(d.paciente)}</h3>
+            <table><thead><tr><th>Medicamento</th><th>Cantidad</th><th>Precio unit.</th><th>Subtotal</th></tr></thead><tbody>
+            ${d.items.map(i => `<tr><td>${esc(i.medicamentoEntregado)}${i.sustituido ? `<br><small>Sustituye a ${esc(i.medicamentoRecetado)} — ${esc(i.razonSustitucion)}</small>` : ''}</td>
+                <td>${i.cantidad}</td><td>${q(i.precioUnitario)}</td><td>${q(i.subtotal)}</td></tr>`).join('')}
+            </tbody></table>
+            <div class="total">Total del Despacho: ${q(d.total)}</div>
+            <p style="font-size:12px;color:#718096;text-align:right;">El cobro físico se realiza fuera del sistema (efectivo, tarjeta u otro medio).</p>
+            ${d.sustituciones.map(s => `<div class="sustituido">${esc(s)}</div>`).join('')}
+            ${d.alertas.map(a => `<div class="alerta">${esc(a)}</div>`).join('')}
+            <div class="acciones"><button onclick="location.reload()">Nuevo Despacho</button></div>`;
+    }
+
+    ['fReceta', 'fConsulta'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); }));
+    buscar();
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Farmacia</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 760px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        h3 { color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 28px; }
+        .sub { text-align: center; color: #718096; font-size: 13px; margin-top: -8px; }
+        button.nuevo { display: block; margin: 18px auto 0; padding: 12px 28px; background: #2f855a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; }
+        button.nuevo:hover { background: #276749; }
+        .alerta { background: #fff5f5; border-left: 4px solid #c53030; color: #c53030; padding: 9px 12px; margin-top: 8px; font-size: 13px; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #ebf4ff; color: #2b6cb0; text-align: left; padding: 8px; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        .estado { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; color: white; }
+        .REGISTRADO { background: #2f855a; } .NO_ADQUIRIDO { background: #718096; }
+        .vacio { color: #718096; font-size: 13px; margin-top: 8px; }
+        a.salir { display: block; text-align: center; margin-top: 25px; color: #718096; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Panel de Farmacia</h2>
+    <p class="sub" id="saludo"></p>
+    <button class="nuevo" onclick="window.location.href='/despacho.html'">Nuevo Despacho</button>
+
+    <h3>Alertas de stock mínimo</h3>
+    <div id="alertas"></div>
+
+    <h3>Despachos recientes</h3>
+    <div id="recientes"></div>
+
+    <a class="salir" href="/menu.html">← Volver al menú</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'FARMACEUTICO' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de farmacia.');
+        window.location.href = '/index.html';
+    }
+    document.getElementById('saludo').textContent = `${usuario.nombreCompleto}${usuario.sucursal ? ' — ' + usuario.sucursal.nombre : ''}`;
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+
+    async function cargar() {
+        const alertas = await fetch(`/api/despachos/alertas-stock?farmaceuticoId=${usuario.id}`).then(r => r.json());
+        document.getElementById('alertas').innerHTML = !Array.isArray(alertas) || alertas.length === 0
+            ? '<p class="vacio">No hay medicamentos en o bajo el nivel de stock mínimo.</p>'
+            : alertas.map(a => `<div class="alerta">${esc(a.mensaje)} Se recomienda generar orden de reabastecimiento.</div>`).join('');
+
+        const rec = await fetch(`/api/despachos/recientes?farmaceuticoId=${usuario.id}`).then(r => r.json());
+        document.getElementById('recientes').innerHTML = !Array.isArray(rec) || rec.length === 0
+            ? '<p class="vacio">Aún no hay despachos registrados en esta sucursal.</p>'
+            : `<table><thead><tr><th>No.</th><th>Paciente</th><th>Receta</th><th>Medicamentos</th><th>Total</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>` +
+              rec.map(d => `<tr><td>${esc(d.numeroDespacho)}</td><td>${esc(d.paciente)}</td><td>#${d.recetaId}</td>
+                  <td>${d.items.map(i => esc(i.medicamentoEntregado) + ' x' + i.cantidad).join('<br>') || '—'}</td>
+                  <td>Q${Number(d.total).toFixed(2)}</td>
+                  <td><span class="estado ${d.estado}">${d.estado === 'REGISTRADO' ? 'Despachado' : 'No adquirido'}</span></td>
+                  <td>${new Date(d.fecha).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })}</td></tr>`).join('') + '</tbody></table>';
+    }
+
+    cargar();
+</script>
+</body>
+</html>

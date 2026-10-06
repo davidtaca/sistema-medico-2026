@@ -8,4 +8,6 @@ import java.util.List;
 public interface RecetaRepository extends JpaRepository<Receta, Long> {
 
     List<Receta> findByCitaIdOrderByFecha(Long citaId);
+
+    List<Receta> findByActivaTrueOrderByFechaDesc();
 }

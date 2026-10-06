@@ -27,10 +27,18 @@ public class Receta {
     private Usuario medico;
 
     @OneToMany(mappedBy = "receta", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id")
     private List<RecetaItem> items = new ArrayList<>();
 
     @Column(nullable = false)
     private LocalDateTime fecha = LocalDateTime.now();
+
+    /**
+     * true mientras la receta puede despacharse. Pasa a false cuando farmacia
+     * entrega los medicamentos (CU-11), para que no se despache dos veces.
+     */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean activa = true;
 
     public Receta() {}
 
@@ -42,6 +50,8 @@ public class Receta {
     public void setMedico(Usuario medico) { this.medico = medico; }
     public List<RecetaItem> getItems() { return items; }
     public void setItems(List<RecetaItem> items) { this.items = items; }
+    public boolean isActiva() { return activa; }
+    public void setActiva(boolean activa) { this.activa = activa; }
     public LocalDateTime getFecha() { return fecha; }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
 }

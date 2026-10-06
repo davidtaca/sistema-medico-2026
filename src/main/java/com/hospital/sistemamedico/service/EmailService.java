@@ -70,6 +70,36 @@ public class EmailService {
     }
 
     /**
+     * Notifica al médico tratante que farmacia sustituyó un medicamento de su
+     * receta (CU-11, FA02).
+     *
+     * @param correoDestino correo electrónico del médico
+     * @param nombreMedico nombre completo del médico
+     * @param paciente nombre del paciente
+     * @param recetaId número de la receta
+     * @param original medicamento recetado
+     * @param alternativa medicamento entregado en su lugar
+     * @param razon razón de la sustitución indicada por farmacia
+     */
+    public void enviarNotificacionSustitucion(String correoDestino, String nombreMedico, String paciente, Long recetaId,
+                                              String original, String alternativa, String razon) {
+        try {
+            SimpleMailMessage mensaje = new SimpleMailMessage();
+            mensaje.setTo(correoDestino);
+            mensaje.setSubject("Sustitución de medicamento - Receta #" + recetaId + " - Hospital Sistema Médico");
+            mensaje.setText("Estimado(a) " + nombreMedico + ",\n\n"
+                    + "Farmacia sustituyó un medicamento de la receta #" + recetaId + " del paciente " + paciente + ":\n\n"
+                    + "Medicamento recetado: " + original + "\n"
+                    + "Medicamento entregado: " + alternativa + "\n"
+                    + "Razón: " + razon + "\n\n"
+                    + "Este es un correo automático del Sistema Informático Hospitalario. No responda a este mensaje.");
+            mailSender.send(mensaje);
+        } catch (Exception e) {
+            System.err.println("No se pudo enviar la notificación de sustitución: " + e.getMessage());
+        }
+    }
+
+    /**
      * Envía el comprobante de pago por correo al paciente tras un pago exitoso
      * (CU-04, RN-CU04-05), con el detalle completo de la transacción y de la cita pagada.
      *
