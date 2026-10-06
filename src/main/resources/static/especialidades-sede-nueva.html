@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Asignar Especialidad a Sede</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .caja { background: white; padding: 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 420px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        label { display: block; margin-top: 16px; font-size: 14px; color: #333; }
+        label .req { color: #c53030; }
+        select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
+        .estado { margin-top: 16px; font-size: 13px; color: #718096; }
+        .botones { display: flex; gap: 10px; margin-top: 24px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; color: white; background: #2f855a; }
+        button:hover:not(:disabled) { background: #276749; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        #mensaje { margin-top: 16px; text-align: center; font-size: 14px; min-height: 18px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="caja">
+    <h2>Asignar Especialidad a Sede</h2>
+
+    <label for="sede">Sede <span class="req">*</span></label>
+    <select id="sede"><option value="">Seleccione...</option></select>
+
+    <label for="especialidad">Especialidad <span class="req">*</span></label>
+    <select id="especialidad"><option value="">Seleccione...</option></select>
+
+    <div class="estado">Estado: <strong>Activo</strong> (se asigna automáticamente)</div>
+
+    <div class="botones">
+        <button class="gris" onclick="cancelar()">Cancelar</button>
+        <button id="btnAsignar" onclick="asignar()">Asignar</button>
+    </div>
+    <div id="mensaje"></div>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || usuario.rol !== 'ADMINISTRADOR') {
+        alert('Debe iniciar sesión como administrador.');
+        window.location.href = '/index.html';
+    }
+    const mensaje = document.getElementById('mensaje');
+
+    // RN-CU12-01: dropdowns con sedes y especialidades activas
+    async function cargarListas() {
+        const [sedes, especialidades] = await Promise.all([
+            fetch('/api/sucursales/activas').then(r => r.json()),
+            fetch('/api/especialidades/activas').then(r => r.json())
+        ]);
+        sedes.forEach(s => document.getElementById('sede').add(new Option(s.nombre, s.id)));
+        especialidades.forEach(e => document.getElementById('especialidad').add(new Option(e.nombre, e.id)));
+    }
+
+    // FA04
+    function cancelar() { window.location.href = '/especialidades-sede.html'; }
+
+    async function asignar() {
+        mensaje.textContent = ''; mensaje.className = '';
+        const sucursalId = document.getElementById('sede').value;
+        const especialidadId = document.getElementById('especialidad').value;
+        // FA03
+        if (!sucursalId) { mensaje.textContent = 'Debe seleccionar una sede.'; mensaje.className = 'error'; return; }
+        if (!especialidadId) { mensaje.textContent = 'Debe seleccionar una especialidad.'; mensaje.className = 'error'; return; }
+
+        const boton = document.getElementById('btnAsignar');
+        boton.disabled = true;
+        try {
+            const r = await fetch('/api/sede-especialidades', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminId: usuario.id, sucursalId, especialidadId }) });
+            const datos = await r.json();
+            if (!r.ok) {
+                // FA05: mensaje que devuelve el servidor (por ejemplo, combinación duplicada)
+                mensaje.textContent = datos.error;
+                mensaje.className = 'error';
+                boton.disabled = false;
+                return;
+            }
+            mensaje.textContent = datos.mensaje;
+            mensaje.className = 'exito';
+            setTimeout(() => { window.location.href = '/especialidades-sede.html'; }, 1500);
+        } catch (e) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.className = 'error';
+            boton.disabled = false;
+        }
+    }
+
+    cargarListas();
+</script>
+</body>
+</html>

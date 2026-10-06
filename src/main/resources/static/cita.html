@@ -138,7 +138,11 @@
 
     async function cargarMedicosDeSucursal(sucursalId) {
         const todosMedicos = await fetch('/api/usuarios/rol/MEDICO').then(r => r.json());
-        medicos = todosMedicos.filter(m => m.sucursal && m.sucursal.id == sucursalId);
+        // CU-13: solo se ofrecen las especialidades que el administrador asignó a la sede
+        const asignadas = await fetch(`/api/sede-especialidades/sucursal/${sucursalId}`).then(r => r.json());
+        const idsAsignadas = new Set(asignadas.map(e => e.id));
+        medicos = todosMedicos.filter(m => m.sucursal && m.sucursal.id == sucursalId
+            && m.especialidad && idsAsignadas.has(m.especialidad.id));
     }
 
     function renderizarEspecialidadesDisponibles() {

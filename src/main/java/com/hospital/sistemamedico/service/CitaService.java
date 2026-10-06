@@ -29,6 +29,9 @@ public class CitaService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private com.hospital.sistemamedico.repository.SedeEspecialidadRepository sedeEspecialidadRepository;
+
     /** Estados de una cita que ya no ocupan el horario del médico. */
     private static final List<EstadoCita> ESTADOS_QUE_LIBERAN_HORARIO = List.of(EstadoCita.CANCELADA, EstadoCita.NO_ASISTIO);
 
@@ -105,6 +108,12 @@ public class CitaService {
 
         Sucursal sucursal = sucursalService.buscarPorId(sucursalId);
         Especialidad especialidad = especialidadService.buscarPorId(especialidadId);
+
+        // CU-13: la especialidad debe estar habilitada en la sede. Los seguimientos (CU-12) quedan
+        // exentos porque continúan una atención ya iniciada en esa sede y especialidad.
+        if (citaOrigenId == null && !sedeEspecialidadRepository.existsBySucursalIdAndEspecialidadIdAndActivoTrue(sucursalId, especialidadId)) {
+            throw new IllegalArgumentException("La especialidad seleccionada no está disponible en la sede indicada.");
+        }
 
         // El médico debe realmente pertenecer a la especialidad y sucursal seleccionadas
         if (medico.getEspecialidad() == null || !medico.getEspecialidad().getId().equals(especialidadId)) {
