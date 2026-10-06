@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cobro de Laboratorio en Caja</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 520px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        .alternar { display: flex; margin-top: 10px; border-radius: 6px; overflow: hidden; border: 1px solid #2b6cb0; }
+        .alternar button { flex: 1; padding: 8px; border: none; background: white; color: #2b6cb0; cursor: pointer; font-size: 13px; }
+        .alternar button.activo { background: #2b6cb0; color: white; }
+        label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
+        button.principal { padding: 10px 16px; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 14px; width: 100%; font-size: 14px; background: #2b6cb0; }
+        button.principal:hover { background: #2c5282; }
+        button.verde { background: #2f855a; } button.verde:hover { background: #276749; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        .orden { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 14px; }
+        .orden p { margin: 3px 0; }
+        .orden.seleccionable { cursor: pointer; }
+        .orden.seleccionable:hover { background: #f7fbff; border-color: #2b6cb0; }
+        .monto { font-size: 20px; font-weight: bold; color: #2b6cb0; }
+        .cambio { margin-top: 8px; font-size: 14px; font-weight: bold; color: #2f855a; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; } .info { color: #b7791f; }
+        .oculto { display: none; }
+        .comprobante { border: 2px dashed #2b6cb0; border-radius: 8px; padding: 15px; margin-top: 15px; background: #f7fafc; font-size: 14px; }
+        .comprobante p { margin: 4px 0; }
+        .comprobante table { width: 100%; font-size: 13px; border-collapse: collapse; margin: 6px 0; }
+        .comprobante td { padding: 3px 0; border-bottom: 1px solid #e2e8f0; }
+        .comprobante td:last-child { text-align: right; }
+        a.salir { display: block; text-align: center; margin-top: 22px; color: #718096; font-size: 13px; }
+        @media print {
+            body { background: white; padding: 0; display: block; }
+            .contenedor { box-shadow: none; width: 100%; padding: 0; }
+            .contenedor > *:not(#zonaComprobante) { display: none !important; }
+            #zonaComprobante button { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Cobro de Laboratorio en Caja</h2>
+
+    <div id="bloqueBusqueda">
+        <div class="alternar">
+            <button id="btnPorDpi" class="activo" onclick="cambiarModo('DPI')">Por DPI</button>
+            <button id="btnPorOrden" onclick="cambiarModo('ORDEN')">Por No. Orden</button>
+        </div>
+        <label id="etiquetaBusqueda" for="valorBusqueda">DPI del paciente</label>
+        <input type="text" id="valorBusqueda" maxlength="13" placeholder="13 dígitos">
+        <button class="principal" onclick="buscar()">Buscar</button>
+    </div>
+
+    <div id="resultado"></div>
+    <div id="mensaje"></div>
+    <div id="zonaComprobante"></div>
+    <a class="salir" href="/caja.html">← Volver al Panel de Caja</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'CAJERO' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de caja.');
+        window.location.href = '/index.html';
+    }
+
+    const mensaje = document.getElementById('mensaje');
+    let modo = 'DPI';
+    let ordenActual = null;
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+    const q = n => 'Q' + Number(n).toFixed(2);
+
+    function mostrar(texto, clase) {
+        mensaje.textContent = texto;
+        mensaje.className = clase || '';
+    }
+
+    function cambiarModo(nuevo) {
+        modo = nuevo;
+        document.getElementById('btnPorDpi').classList.toggle('activo', nuevo === 'DPI');
+        document.getElementById('btnPorOrden').classList.toggle('activo', nuevo === 'ORDEN');
+        document.getElementById('etiquetaBusqueda').textContent = nuevo === 'DPI' ? 'DPI del paciente' : 'Número de orden';
+        const input = document.getElementById('valorBusqueda');
+        input.value = '';
+        input.maxLength = nuevo === 'DPI' ? 13 : 12;
+        input.placeholder = nuevo === 'DPI' ? '13 dígitos' : 'Ej. OL-000004 o 4';
+        document.getElementById('resultado').innerHTML = '';
+        mostrar('');
+    }
+
+    // Pasos 2 y 3
+    async function buscar() {
+        mostrar('');
+        ordenActual = null;
+        document.getElementById('resultado').innerHTML = '';
+        const valor = document.getElementById('valorBusqueda').value.trim();
+        const r = await fetch(`/api/pagos-laboratorio/pendientes?tipo=${modo}&valor=${encodeURIComponent(valor)}`);
+        const datos = await r.json();
+        if (!r.ok) { mostrar(datos.error, 'error'); return; }
+        if (datos.length === 0) {
+            // FA01
+            mostrar('No se encontraron órdenes de laboratorio pendientes de pago. Verifique el DPI o número de orden e intente de nuevo.', 'error');
+            return;
+        }
+        const cont = document.getElementById('resultado');
+        datos.forEach(o => {
+            const div = document.createElement('div');
+            div.className = 'orden seleccionable';
+            div.innerHTML = `<p><strong>${esc(o.numeroOrden)}</strong> — ${esc(o.paciente)}</p>
+                <p>DPI: ${esc(o.dpi || '—')} · ${o.cantidadExamenes} examen(es) · ${new Date(o.fecha).toLocaleDateString('es-GT')}</p>
+                <p>Monto total: <strong>${q(o.montoTotal)}</strong></p>`;
+            div.onclick = () => seleccionar(o);
+            cont.appendChild(div);
+        });
+    }
+
+    // Pasos 4 y 5: formulario de cobro con el resumen de la orden
+    function seleccionar(o) {
+        ordenActual = o;
+        mostrar('');
+        document.getElementById('bloqueBusqueda').classList.add('oculto');
+        document.getElementById('resultado').innerHTML = `
+            <div class="orden">
+                <p><strong>Paciente:</strong> ${esc(o.paciente)}</p>
+                <p><strong>DPI:</strong> ${esc(o.dpi || '—')}</p>
+                <p><strong>No. de orden:</strong> ${esc(o.numeroOrden)}</p>
+                <p><strong>Exámenes:</strong> ${o.cantidadExamenes}</p>
+                <table style="width:100%;font-size:13px;">${o.examenes.map(e => `<tr><td>${esc(e.nombre)}</td><td style="text-align:right;">${q(e.monto)}</td></tr>`).join('')}</table>
+                <p style="margin-top:8px;"><strong>Monto a cobrar:</strong> <span class="monto">${q(o.montoTotal)}</span></p>
+
+                <label for="formaPago">Método de pago</label>
+                <select id="formaPago" onchange="cambiarForma()">
+                    <option value="EFECTIVO">Efectivo (Q)</option>
+                    <option value="VISA">Visa</option>
+                    <option value="MASTERCARD">Mastercard</option>
+                    <option value="DEBITO">Débito</option>
+                </select>
+
+                <div id="campoEfectivo">
+                    <label for="montoRecibido">Monto Recibido (Q)</label>
+                    <input type="number" id="montoRecibido" step="0.01" min="0" oninput="calcularCambio()">
+                    <div class="cambio" id="cambio">Cambio a Devolver: Q0.00</div>
+                </div>
+                <div id="campoTarjeta" class="oculto">
+                    <label for="ultimos4">Últimos 4 dígitos de la tarjeta</label>
+                    <input type="text" id="ultimos4" maxlength="4" inputmode="numeric">
+                </div>
+
+                <button class="principal verde" onclick="confirmarPago()">Confirmar Pago ${q(o.montoTotal)}</button>
+                <button class="principal gris" onclick="noPuedePagar()">El paciente no puede pagar</button>
+            </div>`;
+    }
+
+    function cambiarForma() {
+        const efectivo = document.getElementById('formaPago').value === 'EFECTIVO';
+        document.getElementById('campoEfectivo').classList.toggle('oculto', !efectivo);
+        document.getElementById('campoTarjeta').classList.toggle('oculto', efectivo);
+        mostrar('');
+    }
+
+    // Paso 7: cambio en tiempo real
+    function calcularCambio() {
+        const recibido = parseFloat(document.getElementById('montoRecibido').value);
+        const total = Number(ordenActual.montoTotal);
+        const cambio = isNaN(recibido) ? 0 : Math.max(0, recibido - total);
+        document.getElementById('cambio').textContent = `Cambio a Devolver: ${q(cambio)}`;
+    }
+
+    // FA02: el paciente no puede pagar; la orden queda Pendiente
+    function noPuedePagar() {
+        mostrar('El cobro no se procesó. La orden permanece en estado Pendiente. Puede informar al médico tratante para que evalúe modificar o cancelar la orden.', 'info');
+        document.getElementById('resultado').innerHTML = '';
+        document.getElementById('bloqueBusqueda').classList.remove('oculto');
+        ordenActual = null;
+    }
+
+    // Pasos 6 a 9 (FA03, FA04)
+    async function confirmarPago() {
+        mostrar('');
+        const forma = document.getElementById('formaPago').value;
+        const total = Number(ordenActual.montoTotal);
+        const cuerpo = { ordenId: ordenActual.id, cajeroId: usuario.id, formaPago: forma };
+
+        if (forma === 'EFECTIVO') {
+            const recibido = parseFloat(document.getElementById('montoRecibido').value);
+            if (isNaN(recibido) || recibido < total) {
+                mostrar(`El monto recibido (${q(isNaN(recibido) ? 0 : recibido)}) es menor al monto a cobrar (${q(total)})`, 'error');
+                return;
+            }
+            cuerpo.montoRecibido = recibido;
+        } else {
+            const ultimos4 = document.getElementById('ultimos4').value.trim();
+            if (!/^\d{4}$/.test(ultimos4)) {
+                mostrar('Ingrese los últimos 4 dígitos de la tarjeta.', 'error');
+                return;
+            }
+            // FA04: simulación de rechazo del banco (10 % de probabilidad, solo para fines de demostración académica, igual que en caja.html)
+            if (Math.random() < 0.10) {
+                mostrar('La transacción con tarjeta fue rechazada por el banco. Solicite al paciente otro método de pago.', 'error');
+                return;
+            }
+            cuerpo.ultimosDigitos = ultimos4;
+        }
+
+        try {
+            const r = await fetch('/api/pagos-laboratorio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+            const datos = await r.json();
+            if (!r.ok) { mostrar(datos.error || 'Error al registrar el pago.', 'error'); return; }
+            mostrar(datos.mensaje, 'exito');
+            document.getElementById('resultado').innerHTML = '';
+            pintarComprobante(datos);
+        } catch (e) {
+            mostrar('No se pudo conectar con el servidor.', 'error');
+        }
+    }
+
+    // Paso 10: comprobante (RN-GLOBAL-005)
+    function pintarComprobante(c) {
+        document.getElementById('zonaComprobante').innerHTML = `
+            <div class="comprobante">
+                <p><strong>Comprobante de Pago — Laboratorio</strong></p>
+                <p>No. Transacción: ${esc(c.numeroTransaccion)}</p>
+                <p>Sucursal: ${esc(c.sucursal)}</p>
+                <p>Paciente: ${esc(c.paciente)}</p>
+                <p>Orden: ${esc(c.numeroOrden)}</p>
+                <table>${c.detalle.map(e => `<tr><td>${esc(e.nombre)}</td><td>${q(e.monto)}</td></tr>`).join('')}</table>
+                <p><strong>Monto pagado: ${q(c.monto)}</strong></p>
+                <p>Forma de pago: ${esc(c.formaPago)}${c.ultimosDigitos ? ' ****' + esc(c.ultimosDigitos) : ''}</p>
+                ${c.montoRecibido != null ? `<p>Monto recibido: ${q(c.montoRecibido)} · Cambio: ${q(c.cambio)}</p>` : ''}
+                <p>Fecha y hora: ${new Date(c.fechaPago).toLocaleString('es-GT')}</p>
+            </div>
+            <button class="principal" onclick="window.print()">Imprimir comprobante</button>
+            <button class="principal gris" onclick="location.reload()">Nuevo Cobro</button>`;
+    }
+
+    document.getElementById('valorBusqueda').addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); });
+</script>
+</body>
+</html>
