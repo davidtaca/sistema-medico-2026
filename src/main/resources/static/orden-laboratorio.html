@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalle de Orden de Laboratorio</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 720px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        h3 { color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 26px; }
+        .resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; font-size: 14px; }
+        .resumen span { color: #718096; }
+        .estado { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; }
+        .PENDIENTE { background: #b7791f; } .EN_PROCESO { background: #2b6cb0; } .COMPLETADA { background: #2f855a; }
+        .etiqueta { display: inline-block; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 12px; color: white; margin-left: 6px; }
+        .etiqueta.externa { background: #6b46c1; } .etiqueta.publicado { background: #2f855a; } .etiqueta.fuera { background: #c53030; }
+        .aviso { border-radius: 6px; padding: 12px 14px; font-size: 14px; margin-top: 14px; }
+        .aviso.amarillo { background: #fffaf0; border-left: 4px solid #b7791f; }
+        .aviso.azul { background: #ebf8ff; border-left: 4px solid #2b6cb0; }
+        .aviso.verde { background: #f0fff4; border-left: 4px solid #2f855a; }
+        .examen { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-top: 12px; }
+        .examen .cabecera { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+        .examen small { color: #718096; }
+        label { display: block; margin-top: 10px; font-size: 13px; color: #333; }
+        label .req { color: #c53030; }
+        input[type=text], input[type=date], textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
+        textarea { min-height: 50px; resize: vertical; }
+        .fila { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+        .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; }
+        .check input { width: auto; margin: 0; }
+        .alerta-fuera { background: #fff5f5; border-left: 4px solid #c53030; color: #c53030; padding: 8px 10px; margin-top: 10px; font-size: 13px; border-radius: 4px; }
+        .acciones { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover { background: #2c5282; }
+        button.verde { background: #2f855a; } button.verde:hover { background: #276749; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; } .exito { color: #2f855a; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+        th { text-align: left; color: #2b6cb0; padding: 6px 4px; }
+        td { padding: 6px 4px; border-top: 1px solid #e2e8f0; }
+        .lectura p { margin: 4px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Detalle de Orden de Laboratorio</h2>
+    <div id="mensaje"></div>
+    <div id="contenido"></div>
+    <div class="acciones" style="justify-content:center;margin-top:24px;">
+        <button class="gris" onclick="window.location.href='/laboratorio.html'">Volver</button>
+    </div>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'LABORATORISTA' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de laboratorio.');
+        window.location.href = '/index.html';
+    }
+
+    const ordenId = new URLSearchParams(window.location.search).get('ordenId');
+    const mensaje = document.getElementById('mensaje');
+    let orden = null;
+
+    function mostrar(texto, esError) {
+        mensaje.textContent = texto;
+        mensaje.className = esError ? 'error' : 'exito';
+    }
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+
+    function hoy() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    async function cargar() {
+        const r = await fetch(`/api/laboratorio/ordenes/${ordenId}`);
+        if (!r.ok) { mostrar('No se encontró la orden de laboratorio.', true); return; }
+        orden = await r.json();
+        pintar();
+    }
+
+    function pintar() {
+        const o = orden;
+        let html = `
+            <div class="resumen">
+                <div><span>No. de orden:</span> <strong>${esc(o.numeroOrden)}</strong>${o.externa ? '<span class="etiqueta externa">Externa</span>' : ''}</div>
+                <div><span>Estado:</span> <span class="estado ${o.estado}">${esc(o.estadoEtiqueta)}</span></div>
+                <div><span>Paciente:</span> ${esc(o.paciente)}</div>
+                <div><span>DPI:</span> ${esc(o.dpi || '—')}</div>
+                <div><span>Médico:</span> ${esc(o.medico)}</div>
+                <div><span>Monto total:</span> <strong>Q${Number(o.montoTotal).toFixed(2)}</strong></div>
+                <div style="grid-column:1/3;"><span>Notas:</span> ${esc(o.observaciones || '—')}</div>
+            </div>`;
+
+        if (o.externa) {
+            html += `<div class="aviso azul">Orden externa: el paciente realiza los exámenes en un laboratorio externo y presentará los resultados a su médico en la cita de seguimiento. No requiere cobro ni resultados en esta clínica.</div>`;
+        } else if (o.estado === 'PENDIENTE') {
+            html += `<div class="aviso amarillo"><strong>Informe al paciente</strong> los exámenes ordenados y el monto total (<strong>Q${Number(o.montoTotal).toFixed(2)}</strong>), e indíquele que debe realizar el pago en caja antes de la toma de muestras. El pago debe estar completado antes de proceder con la toma de muestras.</div>`;
+        } else if (o.estado === 'EN_PROCESO') {
+            html += `<div class="aviso verde">Pago registrado: la orden está <strong>En proceso</strong>. Puede proceder con la toma de muestras y el registro de resultados.</div>`;
+        } else {
+            html += `<div class="aviso verde">Todos los resultados de la orden fueron publicados. La orden está <strong>Completada</strong>.</div>`;
+        }
+
+        html += '<h3>Exámenes</h3>';
+        const puedeProcesar = !o.externa && o.estado === 'EN_PROCESO';
+        o.examenes.forEach(e => { html += puedeProcesar && !e.publicado ? formularioExamen(e) : tarjetaExamen(e); });
+        document.getElementById('contenido').innerHTML = html;
+    }
+
+    // Examen de solo lectura (orden pendiente, externa, completada o examen ya publicado)
+    function tarjetaExamen(e) {
+        let detalle = '';
+        if (e.tieneResultado) {
+            detalle = `<div class="lectura">
+                <p>Resultado: <strong>${esc(e.valor)} ${esc(e.unidad)}</strong> — ${new Date(e.fechaResultado + 'T00:00:00').toLocaleDateString('es-GT')}
+                ${e.fueraDeRango ? `<span class="etiqueta fuera">Fuera de rango${e.rangoReferencia ? ' (' + esc(e.rangoReferencia) + ')' : ''}</span>` : ''}</p>
+                ${e.notas ? `<p>Notas: ${esc(e.notas)}</p>` : ''}</div>`;
+        }
+        return `<div class="examen">
+            <div class="cabecera"><strong>${esc(e.nombre)}</strong>
+                <span>Q${Number(e.monto).toFixed(2)} ${e.publicado ? '<span class="etiqueta publicado">Publicado</span>' : ''}</span></div>
+            ${e.rangoReferencia ? `<small>Rango de referencia: ${esc(e.rangoReferencia)}</small>` : ''}
+            ${detalle}</div>`;
+    }
+
+    // Examen con formulario de resultado (orden En proceso, paso 9)
+    function formularioExamen(e) {
+        const valor = e.tieneResultado ? e.valor : '';
+        const unidad = e.tieneResultado ? e.unidad : (e.unidadSugerida || '');
+        const fecha = e.tieneResultado ? e.fechaResultado : hoy();
+        return `<div class="examen" id="examen-${e.id}">
+            <div class="cabecera"><strong>${esc(e.nombre)}</strong><span>Q${Number(e.monto).toFixed(2)}</span></div>
+            ${e.rangoReferencia ? `<small>Rango de referencia: ${esc(e.rangoReferencia)}</small>` : '<small>Sin rango de referencia configurado</small>'}
+            <div class="fila">
+                <label>Valor del resultado <span class="req">*</span>
+                    <input type="text" id="valor-${e.id}" maxlength="500" value="${esc(valor)}"></label>
+                <label>Unidad <span class="req">*</span>
+                    <input type="text" id="unidad-${e.id}" maxlength="50" value="${esc(unidad)}"></label>
+                <label>Fecha del resultado <span class="req">*</span>
+                    <input type="date" id="fecha-${e.id}" max="${hoy()}" value="${esc(fecha)}"></label>
+            </div>
+            <label class="check"><input type="checkbox" id="fuera-${e.id}" ${e.fueraDeRango ? 'checked' : ''} onchange="alternarAlerta(${e.id}, '${esc(e.rangoReferencia || '')}')"> Fuera de rango</label>
+            <div id="alerta-${e.id}">${e.fueraDeRango ? alertaFuera(e.rangoReferencia) : ''}</div>
+            <label>Notas del resultado
+                <textarea id="notas-${e.id}" maxlength="1000">${esc(e.tieneResultado ? (e.notas || '') : '')}</textarea></label>
+            <div class="acciones">
+                <button class="verde" onclick="guardarResultado(${e.id})">Guardar Resultado</button>
+                ${e.tieneResultado ? `<button onclick="publicar(${e.id})">Publicar resultado</button>` : ''}
+            </div>
+        </div>`;
+    }
+
+    function alertaFuera(rango) {
+        return `<div class="alerta-fuera"><strong>Fuera de rango</strong>${rango ? ' (' + esc(rango) + ')' : ''}</div>`;
+    }
+
+    function alternarAlerta(id, rango) {
+        document.getElementById('alerta-' + id).innerHTML = document.getElementById('fuera-' + id).checked ? alertaFuera(rango) : '';
+    }
+
+    async function enviar(url, cuerpo) {
+        const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ laboratoristaId: usuario.id, ...cuerpo }) });
+        return { ok: r.ok, datos: await r.json() };
+    }
+
+    async function guardarResultado(id) {
+        const { ok, datos } = await enviar(`/api/laboratorio/ordenes/${ordenId}/examenes/${id}/resultado`, {
+            valor: document.getElementById('valor-' + id).value,
+            unidad: document.getElementById('unidad-' + id).value,
+            fechaResultado: document.getElementById('fecha-' + id).value,
+            fueraDeRango: document.getElementById('fuera-' + id).checked,
+            notas: document.getElementById('notas-' + id).value
+        });
+        if (!ok) { mostrar(datos.error, true); return; }
+        await cargar();
+        mostrar(datos.mensaje + (datos.advertencia ? ' ' + datos.advertencia : ''), false);
+    }
+
+    async function publicar(id) {
+        const { ok, datos } = await enviar(`/api/laboratorio/ordenes/${ordenId}/examenes/${id}/publicar`, {});
+        if (!ok) { mostrar(datos.error, true); return; }
+        await cargar();
+        mostrar(datos.mensaje + (datos.ordenCompletada ? ' Todos los resultados fueron publicados: la orden está completada.' : ''), false);
+    }
+
+    cargar();
+</script>
+</body>
+</html>

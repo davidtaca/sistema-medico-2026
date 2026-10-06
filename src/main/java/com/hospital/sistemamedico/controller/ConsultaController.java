@@ -4,6 +4,7 @@ import com.hospital.sistemamedico.model.*;
 import com.hospital.sistemamedico.repository.SignosVitalesRepository;
 import com.hospital.sistemamedico.service.CitaService;
 import com.hospital.sistemamedico.service.ConsultaService;
+import com.hospital.sistemamedico.service.LaboratorioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,9 @@ public class ConsultaController {
 
     @Autowired
     private CitaService citaService;
+
+    @Autowired
+    private LaboratorioService laboratorioService;
 
     @Autowired
     private SignosVitalesRepository signosVitalesRepository;
@@ -131,7 +135,8 @@ public class ConsultaController {
                 }
             }
             OrdenLaboratorio orden = consultaService.generarOrdenLaboratorio(citaId, idMedico(datos), examenIds,
-                    datos.get("observaciones") != null ? datos.get("observaciones").toString() : null);
+                    datos.get("observaciones") != null ? datos.get("observaciones").toString() : null,
+                    datos.get("externa") != null && Boolean.parseBoolean(datos.get("externa").toString()));
             Map<String, Object> respuesta = mapaOrden(orden);
             respuesta.put("mensaje", "Orden de laboratorio generada exitosamente. Número de orden: " + orden.getNumeroOrden()
                     + ". Exámenes: " + nombresExamenes(orden) + ". El paciente debe dirigirse al área de laboratorio.");
@@ -260,14 +265,8 @@ public class ConsultaController {
     }
 
     private Map<String, Object> mapaOrden(OrdenLaboratorio o) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", o.getId());
-        m.put("numeroOrden", o.getNumeroOrden());
-        m.put("examenes", o.getExamenes().stream().map(Examen::getNombre).collect(Collectors.toList()));
-        m.put("observaciones", o.getObservaciones());
-        m.put("estado", o.getEstado());
-        m.put("fecha", o.getFecha().toString());
-        return m;
+        // El médico ve solo los resultados que el laboratorio ya publicó
+        return laboratorioService.aMapa(o, true);
     }
 
     private Map<String, Object> mapaReceta(Receta r) {
@@ -287,6 +286,6 @@ public class ConsultaController {
     }
 
     private String nombresExamenes(OrdenLaboratorio o) {
-        return o.getExamenes().stream().map(Examen::getNombre).collect(Collectors.joining(", "));
+        return o.getItems().stream().map(i -> i.getExamen().getNombre()).collect(Collectors.joining(", "));
     }
 }

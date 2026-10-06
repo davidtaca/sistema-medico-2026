@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Órdenes de Laboratorio</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 900px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        .filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 15px; }
+        .filtros label { font-size: 12px; color: #4a5568; display: block; }
+        .filtros input, .filtros select { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; margin-top: 3px; }
+        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover { background: #2c5282; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #ebf4ff; color: #2b6cb0; text-align: left; padding: 9px 8px; }
+        td { padding: 9px 8px; border-bottom: 1px solid #e2e8f0; }
+        tr:hover td { background: #f7fbff; }
+        .estado { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; }
+        .PENDIENTE { background: #b7791f; } .EN_PROCESO { background: #2b6cb0; } .COMPLETADA { background: #2f855a; }
+        .externa { display: inline-block; background: #6b46c1; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+        #mensaje { text-align: center; color: #718096; font-size: 14px; margin-top: 18px; }
+        .error { color: #c53030 !important; }
+        .tabla-scroll { overflow-x: auto; }
+        a.salir { display: block; text-align: center; margin-top: 25px; color: #718096; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Órdenes de Laboratorio</h2>
+
+    <div class="filtros">
+        <div><label for="fEstado">Estado</label>
+            <select id="fEstado">
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="EN_PROCESO">En proceso</option>
+                <option value="COMPLETADA">Completada</option>
+            </select></div>
+        <div><label for="fPaciente">Paciente (nombre o DPI)</label>
+            <input type="text" id="fPaciente" maxlength="100"></div>
+        <div><label for="fMedico">Médico</label>
+            <input type="text" id="fMedico" maxlength="100"></div>
+        <button onclick="cargar()">Buscar</button>
+        <button class="gris" onclick="limpiar()">Limpiar</button>
+    </div>
+
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+            <tr><th>No. Orden</th><th>Paciente</th><th>Médico</th><th>Exámenes</th><th>Monto</th><th>Estado</th><th>Fecha</th><th></th></tr>
+            </thead>
+            <tbody id="cuerpo"></tbody>
+        </table>
+    </div>
+    <div id="mensaje"></div>
+
+    <a class="salir" href="/menu.html">← Volver al menú</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'LABORATORISTA' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de laboratorio.');
+        window.location.href = '/index.html';
+    }
+
+    const mensaje = document.getElementById('mensaje');
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+
+    async function cargar() {
+        mensaje.textContent = '';
+        mensaje.className = '';
+        const params = new URLSearchParams({
+            estado: document.getElementById('fEstado').value,
+            paciente: document.getElementById('fPaciente').value,
+            medico: document.getElementById('fMedico').value
+        });
+        try {
+            const r = await fetch('/api/laboratorio/ordenes?' + params);
+            const ordenes = await r.json();
+            if (!r.ok) { mensaje.textContent = ordenes.error; mensaje.className = 'error'; return; }
+
+            const cuerpo = document.getElementById('cuerpo');
+            cuerpo.innerHTML = ordenes.map(o => `
+                <tr>
+                    <td><strong>${esc(o.numeroOrden)}</strong>${o.externa ? '<span class="externa">Externa</span>' : ''}</td>
+                    <td>${esc(o.paciente)}<br><small>${esc(o.dpi || '')}</small></td>
+                    <td>${esc(o.medico)}</td>
+                    <td>${o.cantidadExamenes}</td>
+                    <td>Q${Number(o.montoTotal).toFixed(2)}</td>
+                    <td><span class="estado ${o.estado}">${esc(o.estadoEtiqueta)}</span></td>
+                    <td>${new Date(o.fecha).toLocaleDateString('es-GT')}</td>
+                    <td><button onclick="window.location.href='/orden-laboratorio.html?ordenId=${o.id}'">Ver detalle</button></td>
+                </tr>`).join('');
+            if (ordenes.length === 0) {
+                mensaje.textContent = 'No se encontraron órdenes de laboratorio con los filtros indicados.';
+            }
+        } catch (e) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.';
+            mensaje.className = 'error';
+        }
+    }
+
+    function limpiar() {
+        document.getElementById('fEstado').value = '';
+        document.getElementById('fPaciente').value = '';
+        document.getElementById('fMedico').value = '';
+        cargar();
+    }
+
+    ['fPaciente', 'fMedico'].forEach(id =>
+        document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') cargar(); }));
+
+    cargar();
+</script>
+</body>
+</html>

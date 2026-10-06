@@ -8,4 +8,6 @@ import java.util.List;
 public interface OrdenLaboratorioRepository extends JpaRepository<OrdenLaboratorio, Long> {
 
     List<OrdenLaboratorio> findByCitaIdOrderByFecha(Long citaId);
+
+    List<OrdenLaboratorio> findAllByOrderByFechaDesc();
 }

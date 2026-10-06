@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -30,6 +31,36 @@ public class CatalogosIniciales implements CommandLineRunner {
 
     @Autowired
     private MedicamentoRepository medicamentoRepository;
+
+    /** Examen del catálogo inicial: monto en quetzales, unidad y rango de referencia de ejemplo. */
+    private record DatosExamen(String nombre, BigDecimal precio, String unidad, String rango) {
+        Examen aExamen() { return new Examen(nombre, precio, unidad, rango); }
+    }
+
+    private static DatosExamen ex(String nombre, String precio, String unidad, String rango) {
+        return new DatosExamen(nombre, new BigDecimal(precio), unidad, rango);
+    }
+
+    private static final List<DatosExamen> EXAMENES = List.of(
+            ex("Hemograma completo", "75", "g/dL", "Hemoglobina 12 - 16"),
+            ex("Glucosa en ayunas", "35", "mg/dL", "70 - 100"),
+            ex("Hemoglobina glicosilada (HbA1c)", "120", "%", "4.0 - 5.6"),
+            ex("Perfil lipídico", "150", "mg/dL", "Colesterol total < 200"),
+            ex("Colesterol total", "40", "mg/dL", "< 200"),
+            ex("Triglicéridos", "40", "mg/dL", "< 150"),
+            ex("Creatinina sérica", "45", "mg/dL", "0.6 - 1.3"),
+            ex("Nitrógeno ureico (BUN)", "40", "mg/dL", "7 - 20"),
+            ex("Ácido úrico", "40", "mg/dL", "3.5 - 7.2"),
+            ex("Transaminasas (TGO/TGP)", "90", "U/L", "TGO 10 - 40 / TGP 7 - 56"),
+            ex("Examen general de orina", "30", "N/A", null),
+            ex("Examen general de heces", "30", "N/A", null),
+            ex("Prueba de embarazo", "50", "N/A", "Negativo"),
+            ex("Hormona estimulante de tiroides (TSH)", "110", "mIU/L", "0.4 - 4.0"),
+            ex("Proteína C reactiva", "70", "mg/L", "< 5"),
+            ex("Prueba rápida de dengue", "120", "N/A", "Negativo"),
+            ex("Urocultivo", "100", "UFC/mL", "< 10,000"),
+            ex("Tiempo de protrombina (TP/TPT)", "85", "seg", "11 - 13.5")
+    );
 
     @Override
     public void run(String... args) {
@@ -85,14 +116,20 @@ public class CatalogosIniciales implements CommandLineRunner {
         }
 
         if (examenRepository.count() == 0) {
-            examenRepository.saveAll(Stream.of(
-                    "Hemograma completo", "Glucosa en ayunas", "Hemoglobina glicosilada (HbA1c)",
-                    "Perfil lipídico", "Colesterol total", "Triglicéridos", "Creatinina sérica",
-                    "Nitrógeno ureico (BUN)", "Ácido úrico", "Transaminasas (TGO/TGP)",
-                    "Examen general de orina", "Examen general de heces", "Prueba de embarazo",
-                    "Hormona estimulante de tiroides (TSH)", "Proteína C reactiva",
-                    "Prueba rápida de dengue", "Urocultivo", "Tiempo de protrombina (TP/TPT)"
-            ).map(Examen::new).toList());
+            examenRepository.saveAll(EXAMENES.stream().map(d -> d.aExamen()).toList());
+        } else {
+            // Catálogo creado antes de que los exámenes tuvieran monto (CU-09): se completa sin tocar lo ya definido
+            for (Examen e : examenRepository.findAll()) {
+                if (e.getPrecio() == null) {
+                    DatosExamen d = EXAMENES.stream().filter(x -> x.nombre.equals(e.getNombre())).findFirst().orElse(null);
+                    e.setPrecio(d != null ? d.precio : new BigDecimal("50"));
+                    if (d != null) {
+                        e.setUnidad(d.unidad);
+                        e.setRangoReferencia(d.rango);
+                    }
+                    examenRepository.save(e);
+                }
+            }
         }
 
         if (medicamentoRepository.count() == 0) {

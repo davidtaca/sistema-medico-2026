@@ -37,6 +37,9 @@
         .examenes input { width: auto; margin: 0; }
         .fila-receta { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-top: 8px; background: white; }
         .fila-receta .dos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .etiqueta-externa { background: #b7791f; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .etiqueta-publicado { background: #2f855a; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .etiqueta-fuera { background: #c53030; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
         .oculto { display: none; }
         details { margin-top: 10px; font-size: 13px; }
         summary { cursor: pointer; color: #2b6cb0; }
@@ -100,6 +103,10 @@
         <div id="formOrden" class="panel-form oculto">
             <strong>Exámenes disponibles</strong>
             <div class="examenes" id="listaExamenes"></div>
+            <p id="totalOrden" style="font-size:14px;margin:10px 0 0;"><strong>Monto total: Q0.00</strong></p>
+            <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="ordenExterna" style="width:auto;margin:0;">
+                Orden externa (el paciente se hará los exámenes en un laboratorio externo)</label>
             <label>Observaciones
                 <textarea id="observacionesOrden" maxlength="2000"></textarea></label>
             <div class="acciones">
@@ -235,8 +242,13 @@
     function pintarOrdenes() {
         document.getElementById('listaOrdenes').innerHTML = contexto.ordenes.length === 0
             ? '<p class="vacio">No se han generado órdenes de laboratorio.</p>'
-            : contexto.ordenes.map(o => `<div class="item-lista"><strong>${esc(o.numeroOrden)}</strong> — ${esc(o.estado)}<br>
-                ${o.examenes.map(esc).join(', ')}${o.observaciones ? '<br><em>Obs.:</em> ' + esc(o.observaciones) : ''}</div>`).join('');
+            : contexto.ordenes.map(o => `<div class="item-lista"><strong>${esc(o.numeroOrden)}</strong> — ${esc(o.estadoEtiqueta)}
+                ${o.externa ? '<span class="etiqueta-externa">Externa</span>' : ''} — Q${Number(o.montoTotal).toFixed(2)}
+                ${o.observaciones ? '<br><em>Obs.:</em> ' + esc(o.observaciones) : ''}
+                ${o.examenes.map(e => `<div style="margin-top:6px;">• ${esc(e.nombre)}${e.publicado ? ' <span class="etiqueta-publicado">Publicado</span>' : ''}
+                    ${e.tieneResultado ? `<br><span style="margin-left:12px;">Resultado: <strong>${esc(e.valor)} ${esc(e.unidad)}</strong>
+                    ${e.fueraDeRango ? '<span class="etiqueta-fuera">Fuera de rango' + (e.rangoReferencia ? ' (' + esc(e.rangoReferencia) + ')' : '') + '</span>' : ''}
+                    ${e.notas ? '<br><span style="margin-left:12px;"><em>Notas:</em> ' + esc(e.notas) + '</span>' : ''}</span>` : ''}</div>`).join('')}</div>`).join('');
     }
 
     function pintarRecetas() {
@@ -312,15 +324,24 @@
     async function abrirOrden() {
         if (examenes.length === 0) examenes = await fetch('/api/consultas/examenes').then(r => r.json());
         document.getElementById('listaExamenes').innerHTML = examenes.map(e =>
-            `<label><input type="checkbox" value="${e.id}"> ${esc(e.nombre)}</label>`).join('');
+            `<label><input type="checkbox" value="${e.id}" data-precio="${e.precio || 0}" onchange="actualizarTotalOrden()"> ${esc(e.nombre)} (Q${Number(e.precio || 0).toFixed(2)})</label>`).join('');
         document.getElementById('observacionesOrden').value = '';
+        document.getElementById('ordenExterna').checked = false;
+        actualizarTotalOrden();
         document.getElementById('formOrden').classList.remove('oculto');
+    }
+
+    function actualizarTotalOrden() {
+        const total = [...document.querySelectorAll('#listaExamenes input:checked')]
+            .reduce((suma, i) => suma + Number(i.dataset.precio), 0);
+        document.querySelector('#totalOrden strong').textContent = `Monto total: Q${total.toFixed(2)}`;
     }
 
     async function guardarOrden() {
         const ids = [...document.querySelectorAll('#listaExamenes input:checked')].map(i => Number(i.value));
         const { ok, datos } = await post(`/api/consultas/cita/${citaId}/ordenes-laboratorio`, 'POST',
-            { examenIds: ids, observaciones: document.getElementById('observacionesOrden').value });
+            { examenIds: ids, observaciones: document.getElementById('observacionesOrden').value,
+              externa: document.getElementById('ordenExterna').checked });
         if (!ok) { mostrar(datos.error, true); return; }
         mostrar(datos.mensaje, false);
         document.getElementById('formOrden').classList.add('oculto');

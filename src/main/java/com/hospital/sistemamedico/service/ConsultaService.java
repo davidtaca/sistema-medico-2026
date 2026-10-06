@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -145,12 +146,13 @@ public class ConsultaService {
      * @param medicoId id del médico asignado
      * @param examenIds ids de los exámenes del catálogo seleccionados (al menos uno)
      * @param observaciones observaciones para el laboratorio (opcional)
+     * @param externa true si el paciente se hará los exámenes en un laboratorio externo (CU-09, FA01)
      * @return la OrdenLaboratorio guardada, con su número de orden
      * @throws IllegalArgumentException si la cita no está en consulta ni evaluada, el médico no es el
      *         asignado, no se seleccionó ningún examen o algún examen no existe o está inactivo
      */
     @Transactional
-    public OrdenLaboratorio generarOrdenLaboratorio(Long citaId, Long medicoId, List<Long> examenIds, String observaciones) {
+    public OrdenLaboratorio generarOrdenLaboratorio(Long citaId, Long medicoId, List<Long> examenIds, String observaciones, boolean externa) {
         Cita cita = validarCitaParaIndicaciones(citaId, medicoId);
 
         if (examenIds == null || examenIds.isEmpty()) {
@@ -160,21 +162,28 @@ public class ConsultaService {
             throw new IllegalArgumentException("Las observaciones no pueden exceder 2000 caracteres.");
         }
 
-        List<Examen> examenes = new ArrayList<>();
+        OrdenLaboratorio orden = new OrdenLaboratorio();
+        orden.setCita(cita);
+        orden.setMedico(cita.getMedico());
+        orden.setExterna(externa);
+        orden.setObservaciones(observaciones == null || observaciones.isBlank() ? null : observaciones.trim());
+
+        BigDecimal total = BigDecimal.ZERO;
         for (Long id : examenIds.stream().distinct().toList()) {
             Examen examen = examenRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Uno de los exámenes seleccionados no existe."));
             if (!examen.isActivo()) {
                 throw new IllegalArgumentException("El examen " + examen.getNombre() + " no está disponible.");
             }
-            examenes.add(examen);
+            BigDecimal precio = examen.getPrecio() == null ? BigDecimal.ZERO : examen.getPrecio();
+            OrdenExamen item = new OrdenExamen();
+            item.setOrden(orden);
+            item.setExamen(examen);
+            item.setPrecio(precio);
+            orden.getItems().add(item);
+            total = total.add(precio);
         }
-
-        OrdenLaboratorio orden = new OrdenLaboratorio();
-        orden.setCita(cita);
-        orden.setMedico(cita.getMedico());
-        orden.setExamenes(examenes);
-        orden.setObservaciones(observaciones == null || observaciones.isBlank() ? null : observaciones.trim());
+        orden.setMontoTotal(total);
         return ordenLaboratorioRepository.save(orden);
     }
 
