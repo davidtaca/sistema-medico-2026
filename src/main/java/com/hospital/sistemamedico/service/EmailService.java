@@ -39,6 +39,37 @@ public class EmailService {
     }
 
     /**
+     * Notifica al paciente que su médico le agendó una cita de seguimiento
+     * (CU-08, FA02).
+     *
+     * @param correoDestino correo electrónico del paciente
+     * @param nombrePaciente nombre completo del paciente
+     * @param nombreMedico nombre del médico de la cita
+     * @param especialidad especialidad de la cita
+     * @param sucursal sucursal donde se atenderá
+     * @param fechaHora fecha y hora de la cita, ya formateada como texto
+     */
+    public void enviarNotificacionSeguimiento(String correoDestino, String nombrePaciente, String nombreMedico,
+                                              String especialidad, String sucursal, String fechaHora) {
+        try {
+            SimpleMailMessage mensaje = new SimpleMailMessage();
+            mensaje.setTo(correoDestino);
+            mensaje.setSubject("Cita de Seguimiento - Hospital Sistema Médico");
+            mensaje.setText("Estimado(a) " + nombrePaciente + ",\n\n"
+                    + "Su médico le agendó una cita de seguimiento:\n\n"
+                    + "Médico: " + nombreMedico + "\n"
+                    + "Especialidad: " + especialidad + "\n"
+                    + "Sucursal: " + sucursal + "\n"
+                    + "Fecha y hora: " + fechaHora + "\n\n"
+                    + "Ingrese al portal para completar el pago y confirmar su cita.\n\n"
+                    + "Este es un correo automático del Sistema Informático Hospitalario. No responda a este mensaje.");
+            mailSender.send(mensaje);
+        } catch (Exception e) {
+            System.err.println("No se pudo enviar la notificación de seguimiento: " + e.getMessage());
+        }
+    }
+
+    /**
      * Envía el comprobante de pago por correo al paciente tras un pago exitoso
      * (CU-04, RN-CU04-05), con el detalle completo de la transacción y de la cita pagada.
      *

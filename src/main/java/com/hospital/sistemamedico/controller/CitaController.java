@@ -25,6 +25,8 @@ public class CitaController {
 
     @Autowired
     private CitaService citaService;
+    @Autowired
+    private com.hospital.sistemamedico.service.EmailService emailService;
     @Value("${app.upload.dir}")
     private String directorioSubida;
 
@@ -41,8 +43,21 @@ public class CitaController {
                     datos.get("motivoConsulta") != null ? datos.get("motivoConsulta").toString() : null,
                     datos.get("emergencia") != null && Boolean.parseBoolean(datos.get("emergencia").toString()),
                     datos.get("documentoAdjunto") != null ? datos.get("documentoAdjunto").toString() : null,
-                    datos.get("esWalkIn") == null || !Boolean.parseBoolean(datos.get("esWalkIn").toString())
+                    datos.get("esWalkIn") == null || !Boolean.parseBoolean(datos.get("esWalkIn").toString()),
+                    datos.get("citaOrigenId") != null ? Long.valueOf(datos.get("citaOrigenId").toString()) : null
             );
+
+            // CU-08 FA02: el paciente recibe aviso cuando su médico le agenda un seguimiento
+            if (cita.getCitaOrigenId() != null) {
+                emailService.enviarNotificacionSeguimiento(
+                        cita.getPaciente().getCorreo(),
+                        cita.getPaciente().getNombreCompleto(),
+                        cita.getMedico().getNombreCompleto(),
+                        cita.getEspecialidad().getNombre(),
+                        cita.getSucursal().getNombre(),
+                        cita.getFechaHora().toString()
+                );
+            }
 
             return ResponseEntity.status(HttpStatus.CREATED).body(cita);
         } catch (IllegalArgumentException e) {

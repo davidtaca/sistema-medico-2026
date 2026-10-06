@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Médico</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 640px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        h3 { color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 28px; }
+        .sub { text-align: center; color: #718096; font-size: 12px; margin-top: -8px; }
+        .tarjeta { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .tarjeta.emergencia { border-left: 5px solid #c53030; background: #fff5f5; }
+        .tarjeta p { margin: 2px 0; font-size: 14px; }
+        .tarjeta .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+        .estado { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; }
+        .PACIENTE_PRESENTE { background: #2b6cb0; }
+        .EN_CONSULTA { background: #6b46c1; }
+        .EVALUADO_PENDIENTE_CIERRE { background: #b7791f; }
+        .badge-emergencia { display: inline-block; background: #c53030; color: white; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 12px; margin-left: 6px; }
+        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover { background: #2c5282; }
+        button.verde { background: #2f855a; }
+        button.verde:hover { background: #276749; }
+        button.rojo { background: #c53030; }
+        button.rojo:hover { background: #9b2c2c; }
+        .vacio { text-align: center; color: #718096; font-size: 14px; margin-top: 12px; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; }
+        .exito { color: #2f855a; }
+        a.salir { display: block; text-align: center; margin-top: 25px; color: #718096; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Panel Médico</h2>
+    <p class="sub" id="saludo"></p>
+    <div id="mensaje"></div>
+
+    <h3>En Espera de Consulta</h3>
+    <div id="enEspera"></div>
+
+    <h3>En Consulta Médica</h3>
+    <div id="enConsulta"></div>
+
+    <h3>Evaluados — Pendiente de cierre</h3>
+    <div id="evaluados"></div>
+
+    <a class="salir" href="/menu.html">← Volver al menú</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+
+    if (!usuario || usuario.rol !== 'MEDICO') {
+        alert('Debe iniciar sesión como médico.');
+        window.location.href = '/index.html';
+    }
+    document.getElementById('saludo').textContent = `Dr(a). ${usuario.nombreCompleto} — la lista se actualiza cada 30 segundos`;
+
+    const mensaje = document.getElementById('mensaje');
+
+    function mostrar(texto, esError) {
+        mensaje.textContent = texto;
+        mensaje.className = esError ? 'error' : 'exito';
+    }
+
+    function formatoFecha(iso) {
+        return new Date(iso).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    // Paso 1 del flujo: tarjeta con número de cita, paciente, especialidad, fecha y estado
+    function crearTarjeta(c, botones) {
+        const div = document.createElement('div');
+        div.className = 'tarjeta' + (c.emergencia ? ' emergencia' : '');
+        div.innerHTML = `
+            <div>
+                <p><strong>${c.paciente}</strong>${c.emergencia ? '<span class="badge-emergencia">Emergencia</span>' : ''}</p>
+                <p>Cita #${c.id} — ${c.especialidad}${c.esSeguimiento ? ' (seguimiento)' : ''}</p>
+                <p>${formatoFecha(c.fechaHora)} — <span class="estado ${c.estado}">${c.estado.replaceAll('_', ' ')}</span></p>
+            </div>`;
+        const acciones = document.createElement('div');
+        acciones.className = 'acciones';
+        botones.forEach(b => {
+            const boton = document.createElement('button');
+            boton.textContent = b.texto;
+            if (b.clase) boton.className = b.clase;
+            boton.onclick = b.accion;
+            acciones.appendChild(boton);
+        });
+        div.appendChild(acciones);
+        return div;
+    }
+
+    function llenarSeccion(id, citas, textoVacio, fabricaBotones) {
+        const contenedor = document.getElementById(id);
+        contenedor.innerHTML = '';
+        if (citas.length === 0) {
+            contenedor.innerHTML = `<p class="vacio">${textoVacio}</p>`;
+            return;
+        }
+        citas.forEach(c => contenedor.appendChild(crearTarjeta(c, fabricaBotones(c))));
+    }
+
+    async function cargarPanel() {
+        try {
+            const panel = await fetch(`/api/consultas/panel/${usuario.id}`).then(r => r.json());
+
+            llenarSeccion('enEspera', panel.enEspera, 'No hay pacientes en espera de consulta.', c => [
+                { texto: 'Iniciar Consulta', accion: () => iniciarConsulta(c) },
+                { texto: 'No Asistió', clase: 'rojo', accion: () => noAsistio(c) }
+            ]);
+            llenarSeccion('enConsulta', panel.enConsulta, 'No hay consultas en curso.', c => [
+                { texto: 'Ver / Completar Consulta', accion: () => window.location.href = `/consulta.html?citaId=${c.id}` }
+            ]);
+            llenarSeccion('evaluados', panel.evaluados, 'No hay pacientes pendientes de cierre.', c => [
+                { texto: 'Órdenes, Recetas y Seguimiento', accion: () => window.location.href = `/consulta.html?citaId=${c.id}` },
+                { texto: 'Finalizar Atención', clase: 'verde', accion: () => finalizarAtencion(c) }
+            ]);
+        } catch (e) {
+            mostrar('No se pudo conectar con el servidor.', true);
+        }
+    }
+
+    // Paso 2: iniciar consulta y anunciar el turno por altavoz (síntesis de voz)
+    async function iniciarConsulta(c) {
+        const r = await fetch(`/api/consultas/iniciar/${c.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ medicoId: usuario.id })
+        });
+        const resultado = await r.json();
+        if (!r.ok) { mostrar(resultado.error, true); return; }
+
+        anunciar(resultado.anuncio);
+        mostrar(resultado.anuncio, false);
+        cargarPanel();
+    }
+
+    function anunciar(texto) {
+        if (!('speechSynthesis' in window)) return;
+        const voz = new SpeechSynthesisUtterance(texto);
+        voz.lang = 'es-ES';
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(voz);
+    }
+
+    // FA06: el paciente no se presentó
+    async function noAsistio(c) {
+        if (!confirm(`¿Marcar la cita #${c.id} de ${c.paciente} como No Asistió?`)) return;
+        const r = await fetch(`/api/consultas/no-asistio/${c.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ medicoId: usuario.id })
+        });
+        const resultado = await r.json();
+        mostrar(r.ok ? resultado.mensaje : resultado.error, !r.ok);
+        cargarPanel();
+    }
+
+    // Pasos 11 y 12
+    async function finalizarAtencion(c) {
+        const r = await fetch(`/api/consultas/finalizar-atencion/${c.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ medicoId: usuario.id })
+        });
+        const resultado = await r.json();
+        mostrar(r.ok ? resultado.mensaje : resultado.error, !r.ok);
+        cargarPanel();
+    }
+
+    cargarPanel();
+    setInterval(cargarPanel, 30000);
+</script>
+</body>
+</html>

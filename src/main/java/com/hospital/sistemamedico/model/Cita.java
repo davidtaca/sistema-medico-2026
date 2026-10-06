@@ -61,6 +61,13 @@ public class Cita {
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion = LocalDateTime.now();
 
+    /**
+     * Si esta cita es de seguimiento (CU-08 FA02 / CU-12), id de la cita original
+     * de la que proviene. Null para citas normales.
+     */
+    @Column(name = "cita_origen_id")
+    private Long citaOrigenId;
+
     public Cita() {}
 
     // Getters y setters
@@ -88,4 +95,6 @@ public class Cita {
     public void setAgendadaPorPaciente(boolean agendadaPorPaciente) { this.agendadaPorPaciente = agendadaPorPaciente; }
     public LocalDateTime getFechaCreacion() { return fechaCreacion; }
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
+    public Long getCitaOrigenId() { return citaOrigenId; }
+    public void setCitaOrigenId(Long citaOrigenId) { this.citaOrigenId = citaOrigenId; }
 }

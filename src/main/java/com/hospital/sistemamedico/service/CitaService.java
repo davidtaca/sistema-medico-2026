@@ -11,13 +11,17 @@ import java.util.List;
  * Servicio con la lógica de negocio relacionada con las citas médicas.
  * Cubre: CU-03 (agendar cita), CU-05 (recepción: registrar llegada y
  * reasignar médico), CU-06 (cancelación automática de citas vencidas)
- * y CU-07 (transición hacia/desde toma de signos vitales).
+ * CU-07 (transición hacia/desde toma de signos vitales) y CU-08 (inicio de
+ * consulta, no asistió, evaluada y cierre de la atención).
  */
 @Service
 public class CitaService {
 
     @Autowired
     private CitaRepository citaRepository;
+
+    @Autowired
+    private com.hospital.sistemamedico.repository.SignosVitalesRepository signosVitalesRepository;
 
     @Autowired
     private UsuarioService usuarioService;
@@ -52,6 +56,29 @@ public class CitaService {
     public Cita agendarCita(Long pacienteId, Long medicoId, Long sucursalId, Long especialidadId,
                             java.time.LocalDateTime fechaHora, String motivoConsulta, boolean emergencia,
                             String documentoAdjunto, boolean agendadaPorPaciente) {
+        return agendarCita(pacienteId, medicoId, sucursalId, especialidadId, fechaHora, motivoConsulta,
+                emergencia, documentoAdjunto, agendadaPorPaciente, null);
+    }
+
+    /**
+     * Igual que el método anterior, pero permite indicar que la cita es de
+     * seguimiento de otra (CU-08, FA02): el médico la agenda para su paciente
+     * desde la sección "Evaluados" del panel médico.
+     *
+     * @param citaOrigenId id de la cita original de la que proviene el seguimiento (null si no es de seguimiento)
+     * @throws IllegalArgumentException además de las validaciones normales, si la cita
+     *         original no existe o no pertenece al paciente indicado
+     */
+    public Cita agendarCita(Long pacienteId, Long medicoId, Long sucursalId, Long especialidadId,
+                            java.time.LocalDateTime fechaHora, String motivoConsulta, boolean emergencia,
+                            String documentoAdjunto, boolean agendadaPorPaciente, Long citaOrigenId) {
+
+        if (citaOrigenId != null) {
+            Cita origen = buscarPorId(citaOrigenId);
+            if (!origen.getPaciente().getId().equals(pacienteId)) {
+                throw new IllegalArgumentException("La cita de origen no pertenece al paciente indicado.");
+            }
+        }
 
         Usuario paciente = usuarioService.buscarPorId(pacienteId);
         if (paciente.getRol() != Rol.PACIENTE) {
@@ -105,6 +132,7 @@ public class CitaService {
         cita.setDocumentoAdjunto(documentoAdjunto);
         cita.setAgendadaPorPaciente(agendadaPorPaciente);
         cita.setFechaCreacion(java.time.LocalDateTime.now());
+        cita.setCitaOrigenId(citaOrigenId);
 
         return citaRepository.save(cita);
     }
@@ -186,6 +214,100 @@ public class CitaService {
         Cita cita = buscarPorId(citaId);
         cita.setEstado(EstadoCita.PACIENTE_PRESENTE);
         cita.setEmergencia(emergencia || cita.isEmergencia());
+        return citaRepository.save(cita);
+    }
+
+    /**
+     * Indica si la cita está "En Espera de Consulta" (CU-08): el paciente ya
+     * pasó por signos vitales (CU-07) y regresó a la sala de espera, es decir,
+     * está en PACIENTE_PRESENTE y tiene signos vitales registrados.
+     *
+     * @param cita cita a evaluar
+     * @return true si el médico ya puede iniciar la consulta
+     */
+    public boolean estaEnEsperaDeConsulta(Cita cita) {
+        return cita.getEstado() == EstadoCita.PACIENTE_PRESENTE && signosVitalesRepository.existsByCitaId(cita.getId());
+    }
+
+    /**
+     * Verifica que el médico indicado sea el asignado a la cita (CU-08).
+     *
+     * @throws IllegalArgumentException si la cita pertenece a otro médico
+     */
+    public void validarMedicoDeLaCita(Cita cita, Long medicoId) {
+        if (medicoId == null || !cita.getMedico().getId().equals(medicoId)) {
+            throw new IllegalArgumentException("La cita no está asignada a este médico.");
+        }
+    }
+
+    /**
+     * Inicia la consulta médica (CU-08, paso 2): la cita pasa de "En Espera" a
+     * EN_CONSULTA. El anuncio por voz (TTS) lo realiza el frontend.
+     *
+     * @param citaId id de la cita
+     * @param medicoId id del médico que inicia la consulta (debe ser el asignado)
+     * @return la Cita actualizada
+     * @throws IllegalArgumentException si la cita no está en espera de consulta
+     *         (por ejemplo, no tiene signos vitales registrados) o es de otro médico
+     */
+    public Cita iniciarConsulta(Long citaId, Long medicoId) {
+        Cita cita = buscarPorId(citaId);
+        validarMedicoDeLaCita(cita, medicoId);
+        if (!estaEnEsperaDeConsulta(cita)) {
+            throw new IllegalArgumentException("La cita debe estar en espera de consulta, con los signos vitales ya registrados.");
+        }
+        cita.setEstado(EstadoCita.EN_CONSULTA);
+        return citaRepository.save(cita);
+    }
+
+    /**
+     * Marca que el paciente no se presentó cuando fue llamado a consulta
+     * (CU-08, FA06). La cita queda cerrada en estado NO_ASISTIO.
+     *
+     * @param citaId id de la cita
+     * @param medicoId id del médico (debe ser el asignado)
+     * @return la Cita actualizada
+     * @throws IllegalArgumentException si la cita no está en espera de consulta o es de otro médico
+     */
+    public Cita marcarNoAsistio(Long citaId, Long medicoId) {
+        Cita cita = buscarPorId(citaId);
+        validarMedicoDeLaCita(cita, medicoId);
+        if (!estaEnEsperaDeConsulta(cita)) {
+            throw new IllegalArgumentException("Solo se puede marcar 'No Asistió' a un paciente en espera de consulta.");
+        }
+        cita.setEstado(EstadoCita.NO_ASISTIO);
+        return citaRepository.save(cita);
+    }
+
+    /**
+     * Pasa la cita a "Evaluados - Pendiente de cierre" cuando el médico finaliza
+     * la consulta (CU-08, paso 9). Lo llama ConsultaService.
+     *
+     * @param citaId id de la cita
+     * @return la Cita actualizada
+     */
+    public Cita marcarEvaluada(Long citaId) {
+        Cita cita = buscarPorId(citaId);
+        cita.setEstado(EstadoCita.EVALUADO_PENDIENTE_CIERRE);
+        return citaRepository.save(cita);
+    }
+
+    /**
+     * Cierra la atención de la cita (CU-08, pasos 11 y 12): de
+     * EVALUADO_PENDIENTE_CIERRE a ATENCION_FINALIZADA.
+     *
+     * @param citaId id de la cita
+     * @param medicoId id del médico (debe ser el asignado)
+     * @return la Cita actualizada
+     * @throws IllegalArgumentException si la consulta aún no fue finalizada o la cita es de otro médico
+     */
+    public Cita finalizarAtencion(Long citaId, Long medicoId) {
+        Cita cita = buscarPorId(citaId);
+        validarMedicoDeLaCita(cita, medicoId);
+        if (cita.getEstado() != EstadoCita.EVALUADO_PENDIENTE_CIERRE) {
+            throw new IllegalArgumentException("Solo se puede finalizar la atención de una cita cuya consulta ya fue finalizada.");
+        }
+        cita.setEstado(EstadoCita.ATENCION_FINALIZADA);
         return citaRepository.save(cita);
     }
 

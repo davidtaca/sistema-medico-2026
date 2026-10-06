@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Consulta Médica</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 680px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        h3 { color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 28px; }
+        .datos-cita { text-align: center; font-size: 14px; color: #4a5568; }
+        .badge-emergencia { display: inline-block; background: #c53030; color: white; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 12px; margin-left: 6px; }
+        .signos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .signo { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; text-align: center; font-size: 12px; color: #718096; }
+        .signo strong { display: block; font-size: 16px; color: #2d3748; }
+        label { display: block; margin-top: 12px; font-size: 13px; color: #333; }
+        label .req { color: #c53030; }
+        input, textarea, select { width: 100%; padding: 9px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
+        textarea { min-height: 70px; resize: vertical; }
+        input:disabled, textarea:disabled, select:disabled { background: #edf2f7; color: #4a5568; }
+        button { padding: 9px 16px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #2c5282; }
+        button.verde { background: #2f855a; } button.verde:hover { background: #276749; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        button.rojo { background: #c53030; } button.rojo:hover { background: #9b2c2c; }
+        .acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; } .exito { color: #2f855a; }
+        .sugerencias { position: absolute; z-index: 10; background: white; border: 1px solid #cbd5e0; border-radius: 5px; width: 100%; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .sugerencias div { padding: 8px 10px; font-size: 13px; cursor: pointer; }
+        .sugerencias div:hover { background: #ebf4ff; }
+        .relativo { position: relative; }
+        .item-lista { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-top: 8px; font-size: 13px; }
+        .panel-form { border: 1px dashed #90cdf4; background: #f7fbff; border-radius: 8px; padding: 14px; margin-top: 12px; }
+        .examenes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; max-height: 200px; overflow-y: auto; }
+        .examenes label { margin: 0; display: flex; align-items: center; gap: 6px; }
+        .examenes input { width: auto; margin: 0; }
+        .fila-receta { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-top: 8px; background: white; }
+        .fila-receta .dos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .oculto { display: none; }
+        details { margin-top: 10px; font-size: 13px; }
+        summary { cursor: pointer; color: #2b6cb0; }
+        .vacio { color: #718096; font-size: 13px; margin-top: 8px; }
+        a.salir { display: block; text-align: center; margin-top: 25px; color: #718096; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Consulta Médica</h2>
+    <div class="datos-cita" id="datosCita"></div>
+    <div id="mensaje"></div>
+
+    <h3>Signos vitales</h3>
+    <div id="signos"></div>
+
+    <details id="historialDetalle">
+        <summary>Historial clínico del paciente</summary>
+        <div id="historial"></div>
+    </details>
+
+    <h3>Registro de consulta</h3>
+    <div id="bloqueConsulta">
+        <label>Motivo de visita <span class="req">*</span>
+            <textarea id="motivoVisita" maxlength="2000"></textarea></label>
+
+        <label>Hallazgos clínicos <span class="req">*</span>
+            <textarea id="hallazgosClinicos" maxlength="5000"></textarea></label>
+
+        <label>Código CIE-10 (opcional)
+            <div class="relativo">
+                <input type="text" id="cie10Buscar" placeholder="Escriba el código o el nombre del diagnóstico" autocomplete="off">
+                <div class="sugerencias oculto" id="sugerencias"></div>
+            </div>
+        </label>
+
+        <label>Diagnóstico <span class="req">*</span> <small>(para finalizar: 10 a 5000 caracteres)</small>
+            <textarea id="diagnostico" maxlength="5000"></textarea></label>
+
+        <label>Plan de tratamiento <span class="req">*</span>
+            <textarea id="planTratamiento" maxlength="5000"></textarea></label>
+
+        <label>Notas adicionales
+            <textarea id="notasAdicionales" maxlength="5000"></textarea></label>
+
+        <label>Estado de consulta
+            <select id="estadoConsulta">
+                <option value="curso">En curso</option>
+                <option value="finalizada">Finalizada</option>
+            </select></label>
+
+        <div class="acciones" id="accionesConsulta">
+            <button id="btnGuardar" class="verde" onclick="guardarConsulta()">Guardar Consulta</button>
+        </div>
+    </div>
+
+    <div id="bloqueIndicaciones" class="oculto">
+        <h3>Órdenes de laboratorio</h3>
+        <div id="listaOrdenes"></div>
+        <div class="acciones"><button onclick="abrirOrden()">Generar orden de laboratorio</button></div>
+        <div id="formOrden" class="panel-form oculto">
+            <strong>Exámenes disponibles</strong>
+            <div class="examenes" id="listaExamenes"></div>
+            <label>Observaciones
+                <textarea id="observacionesOrden" maxlength="2000"></textarea></label>
+            <div class="acciones">
+                <button class="verde" onclick="guardarOrden()">Guardar orden</button>
+                <button class="gris" onclick="document.getElementById('formOrden').classList.add('oculto')">Cancelar</button>
+            </div>
+        </div>
+
+        <h3>Recetas médicas</h3>
+        <div id="listaRecetas"></div>
+        <div class="acciones"><button onclick="abrirReceta()">Generar receta médica</button></div>
+        <div id="formReceta" class="panel-form oculto">
+            <div id="filasReceta"></div>
+            <div class="acciones">
+                <button class="gris" onclick="agregarFilaReceta()">+ Agregar medicamento</button>
+                <button class="verde" onclick="guardarReceta()">Guardar receta</button>
+                <button class="gris" onclick="document.getElementById('formReceta').classList.add('oculto')">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bloqueEvaluado" class="oculto">
+        <h3>Cierre de la atención</h3>
+        <div class="acciones">
+            <button onclick="agendarSeguimiento()">Agendar Seguimiento</button>
+            <button class="verde" onclick="finalizarAtencion()">Finalizar Atención</button>
+        </div>
+    </div>
+
+    <a class="salir" href="/medico.html">← Volver al panel médico</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || usuario.rol !== 'MEDICO') {
+        alert('Debe iniciar sesión como médico.');
+        window.location.href = '/index.html';
+    }
+
+    const citaId = new URLSearchParams(window.location.search).get('citaId');
+    const mensaje = document.getElementById('mensaje');
+    let contexto = null;
+    let examenes = [], medicamentos = [];
+
+    function mostrar(texto, esError) {
+        mensaje.textContent = texto;
+        mensaje.className = esError ? 'error' : 'exito';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+
+    async function post(url, metodo, cuerpo) {
+        const r = await fetch(url, { method: metodo, headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ medicoId: usuario.id, ...cuerpo }) });
+        const datos = await r.json();
+        return { ok: r.ok, datos };
+    }
+
+    async function cargar() {
+        const r = await fetch(`/api/consultas/cita/${citaId}`);
+        if (!r.ok) { mostrar('No se encontró la cita.', true); return; }
+        contexto = await r.json();
+        pintar();
+    }
+
+    function pintar() {
+        const c = contexto.cita;
+        document.getElementById('datosCita').innerHTML =
+            `<strong>${esc(c.paciente)}</strong>${c.emergencia ? '<span class="badge-emergencia">Emergencia</span>' : ''}<br>` +
+            `Cita #${c.id} — ${esc(c.especialidad)} — ${new Date(c.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' })}`;
+
+        // Signos vitales de enfermería (CU-07)
+        const s = contexto.signosVitales;
+        document.getElementById('signos').innerHTML = !s ? '<p class="vacio">Sin signos vitales registrados.</p>' : `
+            <div class="signos">
+                <div class="signo">Presión arterial<strong>${s.presionSistolica}/${s.presionDiastolica} mmHg</strong></div>
+                <div class="signo">Temperatura<strong>${s.temperatura} °C</strong></div>
+                <div class="signo">Frec. cardíaca<strong>${s.frecuenciaCardiaca} lpm</strong></div>
+                <div class="signo">Peso<strong>${s.peso} kg</strong></div>
+                <div class="signo">Talla<strong>${s.talla} cm</strong></div>
+                <div class="signo">Emergencia<strong>${s.emergencia ? 'Sí' : 'No'}</strong></div>
+            </div>`;
+
+        // Historial clínico previo
+        const h = document.getElementById('historial');
+        h.innerHTML = contexto.historial.length === 0 ? '<p class="vacio">Sin consultas anteriores.</p>' :
+            contexto.historial.map(x => `<div class="item-lista"><strong>${new Date(x.fechaFinalizacion).toLocaleDateString('es-GT')}</strong> — ${esc(x.especialidad)} (${esc(x.medico)})<br>
+                ${x.codigoCie10 ? esc(x.codigoCie10) + ' — ' : ''}${esc(x.diagnostico)}<br><em>Tratamiento:</em> ${esc(x.planTratamiento)}</div>`).join('');
+
+        const estado = c.estado;
+        const enConsulta = estado === 'EN_CONSULTA';
+        const evaluado = estado === 'EVALUADO_PENDIENTE_CIERRE';
+
+        // Formulario: editable solo mientras la cita está en consulta
+        const k = contexto.consulta;
+        const campos = ['motivoVisita', 'hallazgosClinicos', 'diagnostico', 'planTratamiento', 'notasAdicionales'];
+        campos.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el.dataset.cargado) {
+                el.value = k ? (k[id] || '') : (id === 'motivoVisita' ? (c.motivoCita || '') : '');
+                el.dataset.cargado = '1';
+            }
+            el.disabled = !enConsulta;
+        });
+        const cie = document.getElementById('cie10Buscar');
+        if (!cie.dataset.cargado) {
+            cie.dataset.codigo = k && k.codigoCie10 ? k.codigoCie10 : '';
+            cie.value = cie.dataset.codigo;
+            cie.dataset.cargado = '1';
+        }
+        cie.disabled = !enConsulta;
+        const sel = document.getElementById('estadoConsulta');
+        sel.value = k && k.finalizada ? 'finalizada' : 'curso';
+        sel.disabled = !enConsulta;
+        document.getElementById('accionesConsulta').classList.toggle('oculto', !enConsulta);
+
+        document.getElementById('bloqueIndicaciones').classList.toggle('oculto', !(enConsulta || evaluado));
+        document.getElementById('bloqueEvaluado').classList.toggle('oculto', !evaluado);
+
+        pintarOrdenes();
+        pintarRecetas();
+
+        if (!enConsulta && !evaluado) {
+            mostrar(`La cita está en estado ${estado.replaceAll('_', ' ')}; solo se muestra en modo de lectura.`, true);
+        }
+    }
+
+    function pintarOrdenes() {
+        document.getElementById('listaOrdenes').innerHTML = contexto.ordenes.length === 0
+            ? '<p class="vacio">No se han generado órdenes de laboratorio.</p>'
+            : contexto.ordenes.map(o => `<div class="item-lista"><strong>${esc(o.numeroOrden)}</strong> — ${esc(o.estado)}<br>
+                ${o.examenes.map(esc).join(', ')}${o.observaciones ? '<br><em>Obs.:</em> ' + esc(o.observaciones) : ''}</div>`).join('');
+    }
+
+    function pintarRecetas() {
+        document.getElementById('listaRecetas').innerHTML = contexto.recetas.length === 0
+            ? '<p class="vacio">No se han generado recetas.</p>'
+            : contexto.recetas.map(r => `<div class="item-lista"><strong>Receta #${r.id}</strong><br>` +
+                r.items.map(i => `• ${esc(i.medicamento)} — ${esc(i.dosis)}, ${esc(i.frecuencia)}, ${esc(i.duracion)}${i.indicaciones ? ' (' + esc(i.indicaciones) + ')' : ''}`).join('<br>') + '</div>').join('');
+    }
+
+    // ---- Autocompletado CIE-10 (paso 6) ----
+    let temporizador = null;
+    const cieInput = document.getElementById('cie10Buscar');
+    const cajaSugerencias = document.getElementById('sugerencias');
+
+    cieInput.addEventListener('input', () => {
+        cieInput.dataset.codigo = '';   // si edita el texto, el código seleccionado deja de ser válido
+        clearTimeout(temporizador);
+        const q = cieInput.value.trim();
+        if (q.length < 2) { cajaSugerencias.classList.add('oculto'); return; }
+        temporizador = setTimeout(async () => {
+            const lista = await fetch(`/api/consultas/cie10?q=${encodeURIComponent(q)}`).then(r => r.json());
+            cajaSugerencias.innerHTML = '';
+            if (lista.length === 0) {
+                cajaSugerencias.innerHTML = '<div style="cursor:default;color:#718096;">Sin coincidencias</div>';
+            }
+            lista.forEach(item => {
+                const div = document.createElement('div');
+                div.textContent = `${item.codigo} — ${item.descripcion}`;
+                div.onclick = () => seleccionarCie10(item);
+                cajaSugerencias.appendChild(div);
+            });
+            cajaSugerencias.classList.remove('oculto');
+        }, 200);
+    });
+    document.addEventListener('click', e => { if (!e.target.closest('.relativo')) cajaSugerencias.classList.add('oculto'); });
+
+    function seleccionarCie10(item) {
+        cieInput.value = `${item.codigo} — ${item.descripcion}`;
+        cieInput.dataset.codigo = item.codigo;
+        const diag = document.getElementById('diagnostico');
+        if (!diag.value.trim()) diag.value = item.descripcion;
+        cajaSugerencias.classList.add('oculto');
+    }
+
+    // ---- Guardar consulta (pasos 8 y 9, FA05) ----
+    async function guardarConsulta() {
+        const finalizar = document.getElementById('estadoConsulta').value === 'finalizada';
+        const texto = cieInput.value.trim();
+        if (texto && !cieInput.dataset.codigo) {
+            mostrar('Seleccione un código CIE-10 de la lista de sugerencias o deje el campo vacío.', true);
+            return;
+        }
+        const cuerpo = {
+            motivoVisita: document.getElementById('motivoVisita').value,
+            hallazgosClinicos: document.getElementById('hallazgosClinicos').value,
+            codigoCie10: cieInput.dataset.codigo || '',
+            diagnostico: document.getElementById('diagnostico').value,
+            planTratamiento: document.getElementById('planTratamiento').value,
+            notasAdicionales: document.getElementById('notasAdicionales').value,
+            finalizada: finalizar
+        };
+        const { ok, datos } = await post(`/api/consultas/cita/${citaId}`, 'PUT', cuerpo);
+        if (!ok) { mostrar(datos.error, true); return; }
+        mostrar(datos.mensaje, false);
+        if (finalizar) {
+            setTimeout(() => { window.location.href = '/medico.html'; }, 2500);
+        } else {
+            await cargar();
+        }
+    }
+
+    // ---- FA01: orden de laboratorio ----
+    async function abrirOrden() {
+        if (examenes.length === 0) examenes = await fetch('/api/consultas/examenes').then(r => r.json());
+        document.getElementById('listaExamenes').innerHTML = examenes.map(e =>
+            `<label><input type="checkbox" value="${e.id}"> ${esc(e.nombre)}</label>`).join('');
+        document.getElementById('observacionesOrden').value = '';
+        document.getElementById('formOrden').classList.remove('oculto');
+    }
+
+    async function guardarOrden() {
+        const ids = [...document.querySelectorAll('#listaExamenes input:checked')].map(i => Number(i.value));
+        const { ok, datos } = await post(`/api/consultas/cita/${citaId}/ordenes-laboratorio`, 'POST',
+            { examenIds: ids, observaciones: document.getElementById('observacionesOrden').value });
+        if (!ok) { mostrar(datos.error, true); return; }
+        mostrar(datos.mensaje, false);
+        document.getElementById('formOrden').classList.add('oculto');
+        await cargar();
+    }
+
+    // ---- FA04: receta médica ----
+    async function abrirReceta() {
+        if (medicamentos.length === 0) medicamentos = await fetch('/api/consultas/medicamentos').then(r => r.json());
+        document.getElementById('filasReceta').innerHTML = '';
+        agregarFilaReceta();
+        document.getElementById('formReceta').classList.remove('oculto');
+    }
+
+    function agregarFilaReceta() {
+        const div = document.createElement('div');
+        div.className = 'fila-receta';
+        div.innerHTML = `
+            <label>Medicamento <span class="req">*</span>
+                <select class="r-medicamento"><option value="">Seleccione...</option>
+                ${medicamentos.map(m => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('')}</select></label>
+            <div class="dos">
+                <label>Dosis <span class="req">*</span><input class="r-dosis" maxlength="255" placeholder="Ej: 1 tableta"></label>
+                <label>Frecuencia <span class="req">*</span><input class="r-frecuencia" maxlength="255" placeholder="Ej: cada 8 horas"></label>
+                <label>Duración <span class="req">*</span><input class="r-duracion" maxlength="255" placeholder="Ej: 5 días"></label>
+            </div>
+            <label>Indicaciones especiales<input class="r-indicaciones" maxlength="1000"></label>`;
+        document.getElementById('filasReceta').appendChild(div);
+    }
+
+    async function guardarReceta() {
+        const items = [...document.querySelectorAll('#filasReceta .fila-receta')].map(f => ({
+            medicamentoId: f.querySelector('.r-medicamento').value,
+            dosis: f.querySelector('.r-dosis').value,
+            frecuencia: f.querySelector('.r-frecuencia').value,
+            duracion: f.querySelector('.r-duracion').value,
+            indicaciones: f.querySelector('.r-indicaciones').value
+        }));
+        const { ok, datos } = await post(`/api/consultas/cita/${citaId}/recetas`, 'POST', { items });
+        if (!ok) { mostrar(datos.error, true); return; }
+        mostrar(datos.mensaje, false);
+        document.getElementById('formReceta').classList.add('oculto');
+        await cargar();
+    }
+
+    // ---- FA02: seguimiento y cierre ----
+    function agendarSeguimiento() {
+        const c = contexto.cita;
+        window.location.href = `/cita.html?seguimiento=${c.id}&pacienteId=${c.pacienteId}`;
+    }
+
+    async function finalizarAtencion() {
+        const { ok, datos } = await post(`/api/consultas/finalizar-atencion/${citaId}`, 'PUT', {});
+        if (!ok) { mostrar(datos.error, true); return; }
+        mostrar(datos.mensaje, false);
+        setTimeout(() => { window.location.href = '/medico.html'; }, 2000);
+    }
+
+    cargar();
+</script>
+</body>
+</html>
