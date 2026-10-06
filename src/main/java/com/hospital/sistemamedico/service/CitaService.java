@@ -24,6 +24,19 @@ public class CitaService {
     private com.hospital.sistemamedico.repository.SignosVitalesRepository signosVitalesRepository;
 
     @Autowired
+    private com.hospital.sistemamedico.repository.ConsultaRepository consultaRepository;
+
+    @Autowired
+    private EmailService emailService;
+
+    /** Estados de una cita que ya no ocupan el horario del médico. */
+    private static final List<EstadoCita> ESTADOS_QUE_LIBERAN_HORARIO = List.of(EstadoCita.CANCELADA, EstadoCita.NO_ASISTIO);
+
+    /** Horario de atención usado para ofrecer citas de seguimiento (hasta que exista la agenda médica, CU-16). */
+    private static final java.time.LocalTime PRIMERA_HORA = java.time.LocalTime.of(8, 0);
+    private static final java.time.LocalTime ULTIMA_HORA = java.time.LocalTime.of(16, 30);
+
+    @Autowired
     private UsuarioService usuarioService;
 
     @Autowired
@@ -116,7 +129,11 @@ public class CitaService {
         }
 
         // Evita que un médico tenga dos citas distintas exactamente en el mismo horario
-        if (citaRepository.existsByMedicoIdAndFechaHora(medicoId, fechaHora)) {
+        if (citaRepository.existsByMedicoIdAndFechaHoraAndEstadoNotIn(medicoId, fechaHora, ESTADOS_QUE_LIBERAN_HORARIO)) {
+            if (citaOrigenId != null) {
+                // CU-12 FA01: el horario se ocupó entre la selección y la confirmación
+                throw new IllegalArgumentException("El horario seleccionado ya no está disponible. Por favor, elija otro horario.");
+            }
             throw new IllegalArgumentException("El médico ya tiene una cita agendada en ese horario.");
         }
 
@@ -341,6 +358,177 @@ public class CitaService {
         }
         cita.setMedico(nuevoMedico);
         return citaRepository.save(cita);
+    }
+
+    // ------------------------------------------------------------------ CU-12
+
+    /**
+     * Datos que se pre-cargan al agendar un seguimiento desde una consulta
+     * (CU-12, paso 2): paciente, médico, especialidad y sucursal de la cita de
+     * la consulta padre.
+     *
+     * @param consultaId id de la consulta médica padre
+     * @throws IllegalArgumentException si la consulta no existe
+     */
+    public java.util.Map<String, Object> contextoSeguimiento(Long consultaId) {
+        Consulta consulta = consultaRepository.findById(consultaId)
+                .orElseThrow(() -> new IllegalArgumentException("Consulta médica no encontrada."));
+        Cita origen = consulta.getCita();
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("consultaId", consulta.getId());
+        m.put("citaOrigenId", origen.getId());
+        m.put("pacienteId", origen.getPaciente().getId());
+        m.put("paciente", origen.getPaciente().getNombreCompleto());
+        m.put("medicoId", origen.getMedico().getId());
+        m.put("medico", origen.getMedico().getNombreCompleto());
+        m.put("especialidad", origen.getEspecialidad().getNombre());
+        m.put("sucursal", origen.getSucursal().getNombre());
+        m.put("tipos", java.util.Arrays.stream(TipoSeguimiento.values())
+                .map(t -> java.util.Map.of("valor", t.name(), "etiqueta", t.getEtiqueta())).toList());
+        m.put("prioridades", java.util.Arrays.stream(PrioridadSeguimiento.values())
+                .map(t -> java.util.Map.of("valor", t.name(), "etiqueta", t.getEtiqueta())).toList());
+        return m;
+    }
+
+    /**
+     * Calendario de disponibilidad de un médico en un día (CU-12, paso 5):
+     * horarios cada 30 minutos entre las 8:00 y las 16:30, marcando los que ya
+     * pasaron o están ocupados por otra cita vigente.
+     *
+     * @param medicoId id del médico
+     * @param fecha día a consultar (AAAA-MM-DD)
+     * @return lista de horarios con su indicador de disponibilidad
+     * @throws IllegalArgumentException si el médico no existe o la fecha no es válida
+     */
+    public List<java.util.Map<String, Object>> disponibilidad(Long medicoId, String fecha) {
+        Usuario medico = usuarioService.buscarPorId(medicoId);
+        if (medico.getRol() != Rol.MEDICO) {
+            throw new IllegalArgumentException("El usuario indicado no es un médico.");
+        }
+        java.time.LocalDate dia;
+        try {
+            dia = java.time.LocalDate.parse(fecha);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("La fecha indicada no es válida.");
+        }
+        java.util.Set<java.time.LocalDateTime> ocupados = citaRepository
+                .findByMedicoIdAndFechaHoraBetween(medicoId, dia.atStartOfDay(), dia.plusDays(1).atStartOfDay()).stream()
+                .filter(c -> !ESTADOS_QUE_LIBERAN_HORARIO.contains(c.getEstado()))
+                .map(Cita::getFechaHora)
+                .collect(java.util.stream.Collectors.toSet());
+
+        List<java.util.Map<String, Object>> horarios = new java.util.ArrayList<>();
+        for (java.time.LocalTime h = PRIMERA_HORA; !h.isAfter(ULTIMA_HORA); h = h.plusMinutes(30)) {
+            java.time.LocalDateTime momento = dia.atTime(h);
+            java.util.Map<String, Object> slot = new java.util.LinkedHashMap<>();
+            slot.put("hora", h.toString());
+            slot.put("fechaHora", momento.toString());
+            slot.put("disponible", momento.isAfter(java.time.LocalDateTime.now()) && !ocupados.contains(momento));
+            horarios.add(slot);
+        }
+        return horarios;
+    }
+
+    /**
+     * Agenda una cita de seguimiento desde una consulta médica (CU-12). La cita
+     * se crea para el mismo paciente, médico, especialidad y sucursal de la cita
+     * original, y queda pendiente de pago. Al guardarla se notifica al paciente
+     * por correo (RN-CU11-04); el recordatorio lo envía luego la tarea programada
+     * (RN-CU11-05).
+     *
+     * @param citaOrigenId id de la cita cuya consulta origina el seguimiento
+     * @param medicoId id del médico que agenda (debe ser el de la cita original)
+     * @param tipo MONITOREO_TRATAMIENTO o REVISION_RESULTADOS_LABORATORIO
+     * @param fechaHora fecha y hora elegidas, futuras y dentro de los horarios disponibles
+     * @param observaciones motivo del seguimiento (10 a 2000 caracteres)
+     * @param prioridad ALTA, MEDIA o BAJA (opcional; MEDIA por defecto)
+     * @return la cita de seguimiento creada
+     * @throws IllegalArgumentException si la consulta no está activa o recién finalizada, falta o es
+     *         inválido algún dato (RN-CU11-01 a 03) o el horario ya fue ocupado (FA01)
+     */
+    public Cita agendarSeguimiento(Long citaOrigenId, Long medicoId, String tipo, java.time.LocalDateTime fechaHora,
+                                   String observaciones, String prioridad) {
+        Cita origen = buscarPorId(citaOrigenId);
+        validarMedicoDeLaCita(origen, medicoId);
+        if (origen.getEstado() != EstadoCita.EN_CONSULTA && origen.getEstado() != EstadoCita.EVALUADO_PENDIENTE_CIERRE) {
+            throw new IllegalArgumentException("Solo se puede agendar un seguimiento desde una consulta activa o recién finalizada.");
+        }
+        if (consultaRepository.findByCitaId(citaOrigenId).isEmpty()) {
+            throw new IllegalArgumentException("Guarde la consulta antes de agendar un seguimiento.");
+        }
+
+        // RN-CU11-01
+        TipoSeguimiento tipoSeguimiento;
+        try {
+            tipoSeguimiento = TipoSeguimiento.valueOf(tipo == null ? "" : tipo.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Debe seleccionar el tipo de seguimiento.");
+        }
+
+        // RN-CU11-02
+        if (fechaHora == null || !fechaHora.isAfter(java.time.LocalDateTime.now()) || !esHorarioDeAtencion(fechaHora)) {
+            throw new IllegalArgumentException("Seleccione una fecha futura dentro de los horarios disponibles del médico.");
+        }
+
+        // RN-CU11-03
+        String texto = observaciones == null ? "" : observaciones.trim();
+        if (texto.length() < 10 || texto.length() > 2000) {
+            throw new IllegalArgumentException("Las observaciones son obligatorias. Deben contener entre 10 y 2000 caracteres.");
+        }
+
+        PrioridadSeguimiento prioridadSeguimiento = PrioridadSeguimiento.MEDIA;
+        if (prioridad != null && !prioridad.isBlank()) {
+            try {
+                prioridadSeguimiento = PrioridadSeguimiento.valueOf(prioridad.trim());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("La prioridad indicada no es válida.");
+            }
+        }
+
+        Cita cita = agendarCita(origen.getPaciente().getId(), origen.getMedico().getId(), origen.getSucursal().getId(),
+                origen.getEspecialidad().getId(), fechaHora, texto, false, null, false, origen.getId());
+        cita.setTipoSeguimiento(tipoSeguimiento);
+        cita.setPrioridad(prioridadSeguimiento);
+        Cita guardada = citaRepository.save(cita);
+
+        emailService.enviarNotificacionSeguimiento(guardada.getPaciente().getCorreo(), guardada.getPaciente().getNombreCompleto(),
+                guardada.getMedico().getNombreCompleto(), guardada.getSucursal().getNombre(), guardada.getFechaHora(),
+                tipoSeguimiento.getEtiqueta(), texto);
+        return guardada;
+    }
+
+    /** true si la hora cae en un horario de atención: cada 30 minutos entre las 8:00 y las 16:30. */
+    private boolean esHorarioDeAtencion(java.time.LocalDateTime fechaHora) {
+        java.time.LocalTime h = fechaHora.toLocalTime();
+        return fechaHora.getSecond() == 0 && fechaHora.getNano() == 0 && h.getMinute() % 30 == 0
+                && !h.isBefore(PRIMERA_HORA) && !h.isAfter(ULTIMA_HORA);
+    }
+
+    /**
+     * Tarea programada que envía el recordatorio de las citas de seguimiento
+     * próximas (RN-CU11-05): las que ocurren dentro de las siguientes 48 horas
+     * y aún no tienen recordatorio. No se envía si la cita fue cancelada. Como
+     * el estado "recordatorio enviado" se guarda en la base de datos, el proceso
+     * no se pierde si el sistema se reinicia (RNF-020), y si el envío falla se
+     * reintenta en la siguiente ejecución.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(initialDelay = 60000, fixedRate = 600000)
+    public void enviarRecordatoriosSeguimiento() {
+        java.time.LocalDateTime ahora = java.time.LocalDateTime.now();
+        List<Cita> proximas = citaRepository
+                .findByTipoSeguimientoIsNotNullAndRecordatorioEnviadoFalseAndFechaHoraBetween(ahora, ahora.plusHours(48));
+        for (Cita cita : proximas) {
+            if (cita.getEstado() == EstadoCita.CANCELADA || cita.getEstado() == EstadoCita.NO_ASISTIO) {
+                continue;
+            }
+            boolean enviado = emailService.enviarRecordatorioSeguimiento(cita.getPaciente().getCorreo(),
+                    cita.getPaciente().getNombreCompleto(), cita.getMedico().getNombreCompleto(),
+                    cita.getSucursal().getNombre(), cita.getFechaHora(), cita.getTipoSeguimiento().getEtiqueta());
+            if (enviado) {
+                cita.setRecordatorioEnviado(true);
+                citaRepository.save(cita);
+            }
+        }
     }
 
     /**

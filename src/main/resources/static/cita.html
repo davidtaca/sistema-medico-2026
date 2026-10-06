@@ -106,20 +106,9 @@
 
 <script>
     const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
-
-    // CU-08 FA02: el médico agenda una cita de seguimiento para su paciente desde el panel médico
-    const parametros = new URLSearchParams(window.location.search);
-    const citaOrigenId = parametros.get('seguimiento');
-    const pacienteSeguimientoId = parametros.get('pacienteId');
-    const esSeguimiento = !!(usuario && usuario.rol === 'MEDICO' && citaOrigenId && pacienteSeguimientoId);
-
-    if (!usuario || (usuario.rol !== 'PACIENTE' && !esSeguimiento)) {
+    if (!usuario || usuario.rol !== 'PACIENTE') {
         alert('Debe iniciar sesión como paciente para agendar una cita.');
         window.location.href = '/index.html';
-    }
-    if (esSeguimiento) {
-        document.querySelector('h2').textContent = 'Agendar Cita de Seguimiento';
-        document.getElementById('motivo').value = `Cita de seguimiento de la consulta #${citaOrigenId}.`;
     }
 
     let sucursales = [], especialidades = [], medicos = [];
@@ -292,9 +281,7 @@
         }
 
         const datos = {
-            pacienteId: esSeguimiento ? pacienteSeguimientoId : usuario.id,
-            citaOrigenId: esSeguimiento ? citaOrigenId : null,
-            esWalkIn: esSeguimiento,
+            pacienteId: usuario.id,
             medicoId: document.getElementById('medico').value,
             sucursalId: document.getElementById('sucursal').value,
             especialidadId: document.getElementById('especialidad').value,
@@ -315,14 +302,6 @@
             if (!respuesta.ok) {
                 mensaje.textContent = resultado.error || 'No se pudo agendar la cita.';
                 mensaje.className = 'error';
-                return;
-            }
-
-            if (esSeguimiento) {
-                const f = new Date(resultado.fechaHora);
-                mensaje.textContent = `Cita de seguimiento agendada para el ${f.toLocaleDateString('es-GT')} a las ${f.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}. Se enviará notificación al paciente.`;
-                mensaje.className = 'info';
-                setTimeout(() => { window.location.href = '/medico.html'; }, 2500);
                 return;
             }
 

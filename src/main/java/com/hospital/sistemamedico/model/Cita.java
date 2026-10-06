@@ -68,6 +68,20 @@ public class Cita {
     @Column(name = "cita_origen_id")
     private Long citaOrigenId;
 
+    /** Tipo de seguimiento (CU-12); null si no es una cita de seguimiento. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_seguimiento")
+    private TipoSeguimiento tipoSeguimiento;
+
+    /** Prioridad asignada por el médico al agendar el seguimiento (CU-12); null en citas normales. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "prioridad_seguimiento")
+    private PrioridadSeguimiento prioridad;
+
+    /** true cuando ya se envió el recordatorio de la cita de seguimiento (RN-CU11-05). */
+    @Column(name = "recordatorio_enviado", nullable = false, columnDefinition = "boolean default false")
+    private boolean recordatorioEnviado = false;
+
     public Cita() {}
 
     // Getters y setters
@@ -97,4 +111,10 @@ public class Cita {
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
     public Long getCitaOrigenId() { return citaOrigenId; }
     public void setCitaOrigenId(Long citaOrigenId) { this.citaOrigenId = citaOrigenId; }
+    public TipoSeguimiento getTipoSeguimiento() { return tipoSeguimiento; }
+    public void setTipoSeguimiento(TipoSeguimiento tipoSeguimiento) { this.tipoSeguimiento = tipoSeguimiento; }
+    public PrioridadSeguimiento getPrioridad() { return prioridad; }
+    public void setPrioridad(PrioridadSeguimiento prioridad) { this.prioridad = prioridad; }
+    public boolean isRecordatorioEnviado() { return recordatorioEnviado; }
+    public void setRecordatorioEnviado(boolean recordatorioEnviado) { this.recordatorioEnviado = recordatorioEnviado; }
 }

@@ -115,6 +115,9 @@
             </div>
         </div>
 
+        <h3>Seguimiento</h3>
+        <div class="acciones"><button onclick="agendarSeguimiento()">Agendar Seguimiento</button></div>
+
         <h3>Recetas médicas</h3>
         <div id="listaRecetas"></div>
         <div class="acciones"><button onclick="abrirReceta()">Generar receta médica</button></div>
@@ -131,7 +134,6 @@
     <div id="bloqueEvaluado" class="oculto">
         <h3>Cierre de la atención</h3>
         <div class="acciones">
-            <button onclick="agendarSeguimiento()">Agendar Seguimiento</button>
             <button class="verde" onclick="finalizarAtencion()">Finalizar Atención</button>
         </div>
     </div>
@@ -388,9 +390,13 @@
     }
 
     // ---- FA02: seguimiento y cierre ----
+    // CU-12: navega al agendamiento con los parámetros de seguimiento
     function agendarSeguimiento() {
-        const c = contexto.cita;
-        window.location.href = `/cita.html?seguimiento=${c.id}&pacienteId=${c.pacienteId}`;
+        if (!contexto.consulta) {
+            mostrar('Guarde la consulta antes de agendar un seguimiento.', true);
+            return;
+        }
+        window.location.href = `/seguimiento.html?followUp=true&parentConsultationId=${contexto.consulta.id}`;
     }
 
     async function finalizarAtencion() {

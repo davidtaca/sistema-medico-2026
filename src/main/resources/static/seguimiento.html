@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cita de Seguimiento</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 560px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        .banner { background: #f0fff4; border-left: 5px solid #2f855a; border-radius: 6px; padding: 12px 14px; font-size: 14px; margin-bottom: 14px; }
+        .banner p { margin: 3px 0; }
+        label { display: block; margin-top: 14px; font-size: 14px; color: #333; }
+        label .req { color: #c53030; }
+        select, input[type=date], textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
+        textarea { min-height: 90px; resize: vertical; }
+        .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+        .slot { padding: 9px 4px; border: 1px solid #2b6cb0; background: white; color: #2b6cb0; border-radius: 6px; cursor: pointer; font-size: 13px; text-align: center; }
+        .slot:hover:not(:disabled) { background: #ebf4ff; }
+        .slot.elegido { background: #2b6cb0; color: white; }
+        .slot:disabled { border-color: #e2e8f0; background: #f7fafc; color: #a0aec0; cursor: not-allowed; text-decoration: line-through; }
+        .botones { display: flex; gap: 10px; margin-top: 22px; }
+        button.accion { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; color: white; background: #2b6cb0; }
+        button.accion:hover { background: #2c5282; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        button.verde { background: #2f855a; } button.verde:hover { background: #276749; }
+        .alerta-roja { background: #fff5f5; border-left: 4px solid #c53030; color: #c53030; padding: 10px 12px; border-radius: 4px; font-size: 14px; margin-top: 12px; }
+        #toast { margin-top: 14px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; }
+        .resumen p { font-size: 14px; margin: 6px 0; }
+        .resumen strong { color: #2b6cb0; }
+        .oculto { display: none; }
+        .progreso { display: flex; justify-content: center; gap: 30px; margin-bottom: 14px; font-size: 12px; color: #718096; }
+        .progreso span.activo { color: #2b6cb0; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h2>Agendar Cita de Seguimiento</h2>
+    <div class="progreso"><span id="p1" class="activo">1. Tipo y horario</span><span id="p2">2. Confirmación</span></div>
+
+    <div class="banner" id="banner"></div>
+
+    <!-- Paso 5 del flujo: tipo de seguimiento y calendario de disponibilidad -->
+    <div id="paso1">
+        <label for="tipo">Tipo de seguimiento <span class="req">*</span></label>
+        <select id="tipo"><option value="">Seleccione...</option></select>
+
+        <label for="fecha">Fecha <span class="req">*</span></label>
+        <input type="date" id="fecha">
+
+        <div id="slots" class="slots"></div>
+        <div id="sinHorarios" class="oculto" style="font-size:13px;color:#718096;margin-top:10px;">Seleccione una fecha para ver los horarios disponibles del médico.</div>
+
+        <div class="botones">
+            <button class="accion gris" onclick="volver()">Volver</button>
+            <button class="accion" onclick="irAConfirmacion()">Continuar</button>
+        </div>
+    </div>
+
+    <!-- Paso 6: motivo y prioridad -->
+    <div id="paso2" class="oculto">
+        <div class="resumen" id="resumen"></div>
+
+        <label for="observaciones">Motivo del seguimiento (observaciones) <span class="req">*</span></label>
+        <textarea id="observaciones" maxlength="2000" placeholder="Entre 10 y 2000 caracteres"></textarea>
+
+        <label for="prioridad">Prioridad</label>
+        <select id="prioridad"></select>
+
+        <div class="botones">
+            <button class="accion gris" onclick="mostrarPaso(1)">Atrás</button>
+            <button class="accion verde" id="btnConfirmar" onclick="confirmar()">Confirmar Seguimiento</button>
+        </div>
+    </div>
+
+    <div id="alertaConflicto" class="alerta-roja oculto"></div>
+    <div id="toast"></div>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || usuario.rol !== 'MEDICO') {
+        alert('Debe iniciar sesión como médico.');
+        window.location.href = '/index.html';
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const consultaId = params.get('parentConsultationId');
+    const toast = document.getElementById('toast');
+    const alertaConflicto = document.getElementById('alertaConflicto');
+    let ctx = null;
+    let horarioElegido = null;
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+    function aviso(texto, clase) { toast.textContent = texto; toast.className = clase || ''; }
+
+    // Paso 2: pre-carga de paciente, médico, especialidad y sucursal desde la consulta padre
+    async function iniciar() {
+        if (params.get('followUp') !== 'true' || !consultaId) {
+            aviso('Debe agendar el seguimiento desde una consulta médica.', 'error');
+            document.getElementById('paso1').classList.add('oculto');
+            return;
+        }
+        const r = await fetch(`/api/citas/seguimiento/contexto?consultaId=${encodeURIComponent(consultaId)}`);
+        ctx = await r.json();
+        if (!r.ok) { aviso(ctx.error, 'error'); document.getElementById('paso1').classList.add('oculto'); return; }
+        if (ctx.medicoId !== usuario.id) {
+            aviso('Esta consulta pertenece a otro médico.', 'error');
+            document.getElementById('paso1').classList.add('oculto');
+            return;
+        }
+        document.getElementById('banner').innerHTML =
+            `<p><strong>Paciente:</strong> ${esc(ctx.paciente)}</p>
+             <p><strong>Médico:</strong> ${esc(ctx.medico)} — ${esc(ctx.especialidad)}</p>
+             <p><strong>Sucursal:</strong> ${esc(ctx.sucursal)}</p>`;
+        ctx.tipos.forEach(t => document.getElementById('tipo').add(new Option(t.etiqueta, t.valor)));
+        ctx.prioridades.forEach(p => document.getElementById('prioridad').add(new Option(p.etiqueta, p.valor)));
+        document.getElementById('prioridad').value = 'MEDIA';
+
+        const hoy = new Date();
+        const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        document.getElementById('fecha').min = iso(hoy);
+        document.getElementById('sinHorarios').classList.remove('oculto');
+    }
+
+    // Calendario de disponibilidad del mismo médico
+    async function cargarHorarios() {
+        horarioElegido = null;
+        const fecha = document.getElementById('fecha').value;
+        const cont = document.getElementById('slots');
+        cont.innerHTML = '';
+        if (!fecha) { document.getElementById('sinHorarios').classList.remove('oculto'); return; }
+        document.getElementById('sinHorarios').classList.add('oculto');
+        const r = await fetch(`/api/citas/disponibilidad?medicoId=${ctx.medicoId}&fecha=${fecha}`);
+        const slots = await r.json();
+        if (!r.ok) { aviso(slots.error, 'error'); return; }
+        slots.forEach(s => {
+            const b = document.createElement('button');
+            b.className = 'slot';
+            b.textContent = s.hora;
+            b.disabled = !s.disponible;
+            b.onclick = () => {
+                document.querySelectorAll('.slot').forEach(x => x.classList.remove('elegido'));
+                b.classList.add('elegido');
+                horarioElegido = s.fechaHora;
+                alertaConflicto.classList.add('oculto');
+                aviso('');
+            };
+            cont.appendChild(b);
+        });
+        if (slots.every(s => !s.disponible)) {
+            cont.innerHTML = '<div style="grid-column:1/5;font-size:13px;color:#c53030;">No hay horarios disponibles ese día. Elija otra fecha.</div>';
+        }
+    }
+    document.getElementById('fecha').addEventListener('change', cargarHorarios);
+
+    function mostrarPaso(n) {
+        document.getElementById('paso1').classList.toggle('oculto', n !== 1);
+        document.getElementById('paso2').classList.toggle('oculto', n !== 2);
+        document.getElementById('p1').className = n === 1 ? 'activo' : '';
+        document.getElementById('p2').className = n === 2 ? 'activo' : '';
+        aviso('');
+    }
+
+    function irAConfirmacion() {
+        aviso('');
+        // RN-CU11-01
+        if (!document.getElementById('tipo').value) { aviso('Debe seleccionar el tipo de seguimiento.', 'error'); return; }
+        // RN-CU11-02
+        if (!horarioElegido) { aviso('Seleccione una fecha futura dentro de los horarios disponibles del médico.', 'error'); return; }
+        const tipo = document.getElementById('tipo').selectedOptions[0].text;
+        const f = new Date(horarioElegido);
+        document.getElementById('resumen').innerHTML =
+            `<p><strong>Tipo:</strong> ${esc(tipo)}</p>
+             <p><strong>Fecha y hora:</strong> ${f.toLocaleDateString('es-GT', { dateStyle: 'long' })} a las ${f.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}</p>`;
+        mostrarPaso(2);
+    }
+
+    // FA02: "Volver" regresa a la consulta sin guardar nada
+    function volver() {
+        window.location.href = `/consulta.html?citaId=${ctx ? ctx.citaOrigenId : ''}`;
+    }
+
+    // Paso 7 en adelante
+    async function confirmar() {
+        aviso('');
+        alertaConflicto.classList.add('oculto');
+        const observaciones = document.getElementById('observaciones').value.trim();
+        // RN-CU11-03
+        if (observaciones.length < 10 || observaciones.length > 2000) {
+            aviso('Las observaciones son obligatorias. Deben contener entre 10 y 2000 caracteres.', 'error');
+            return;
+        }
+        const boton = document.getElementById('btnConfirmar');
+        boton.disabled = true;
+        try {
+            const r = await fetch('/api/citas/seguimiento', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ citaOrigenId: ctx.citaOrigenId, medicoId: usuario.id, tipo: document.getElementById('tipo').value,
+                    fechaHora: horarioElegido, observaciones, prioridad: document.getElementById('prioridad').value }) });
+            const datos = await r.json();
+            if (!r.ok) {
+                if (datos.error && datos.error.startsWith('El horario seleccionado ya no está disponible')) {
+                    // FA01: vuelve a la selección de horario
+                    alertaConflicto.textContent = datos.error;
+                    alertaConflicto.classList.remove('oculto');
+                    mostrarPaso(1);
+                    await cargarHorarios();
+                } else {
+                    aviso(datos.error || 'No se pudo agendar el seguimiento.', 'error');
+                }
+                boton.disabled = false;
+                return;
+            }
+            aviso(datos.mensaje, 'exito');
+            setTimeout(() => { window.location.href = '/medico.html'; }, 2500);
+        } catch (e) {
+            aviso('No se pudo conectar con el servidor.', 'error');
+            boton.disabled = false;
+        }
+    }
+
+    iniciar();
+</script>
+</body>
+</html>

@@ -25,8 +25,6 @@ public class CitaController {
 
     @Autowired
     private CitaService citaService;
-    @Autowired
-    private com.hospital.sistemamedico.service.EmailService emailService;
     @Value("${app.upload.dir}")
     private String directorioSubida;
 
@@ -43,23 +41,66 @@ public class CitaController {
                     datos.get("motivoConsulta") != null ? datos.get("motivoConsulta").toString() : null,
                     datos.get("emergencia") != null && Boolean.parseBoolean(datos.get("emergencia").toString()),
                     datos.get("documentoAdjunto") != null ? datos.get("documentoAdjunto").toString() : null,
-                    datos.get("esWalkIn") == null || !Boolean.parseBoolean(datos.get("esWalkIn").toString()),
-                    datos.get("citaOrigenId") != null ? Long.valueOf(datos.get("citaOrigenId").toString()) : null
+                    datos.get("esWalkIn") == null || !Boolean.parseBoolean(datos.get("esWalkIn").toString())
             );
 
-            // CU-08 FA02: el paciente recibe aviso cuando su médico le agenda un seguimiento
-            if (cita.getCitaOrigenId() != null) {
-                emailService.enviarNotificacionSeguimiento(
-                        cita.getPaciente().getCorreo(),
-                        cita.getPaciente().getNombreCompleto(),
-                        cita.getMedico().getNombreCompleto(),
-                        cita.getEspecialidad().getNombre(),
-                        cita.getSucursal().getNombre(),
-                        cita.getFechaHora().toString()
-                );
-            }
-
             return ResponseEntity.status(HttpStatus.CREATED).body(cita);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** CU-12 paso 2: datos pre-cargados (paciente, médico, especialidad, sucursal) de la consulta padre. */
+    @GetMapping("/seguimiento/contexto")
+    public ResponseEntity<?> contextoSeguimiento(@RequestParam Long consultaId) {
+        try {
+            return ResponseEntity.ok(citaService.contextoSeguimiento(consultaId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** CU-12 paso 5: horarios del médico en un día, con su disponibilidad. */
+    @GetMapping("/disponibilidad")
+    public ResponseEntity<?> disponibilidad(@RequestParam Long medicoId, @RequestParam String fecha) {
+        try {
+            return ResponseEntity.ok(citaService.disponibilidad(medicoId, fecha));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** CU-12 pasos 6 a 10: agenda la cita de seguimiento; notifica al paciente por correo. */
+    @PostMapping("/seguimiento")
+    public ResponseEntity<?> agendarSeguimiento(@RequestBody Map<String, Object> datos) {
+        try {
+            if (datos.get("citaOrigenId") == null || datos.get("medicoId") == null) {
+                throw new IllegalArgumentException("Falta la consulta de origen o el médico.");
+            }
+            LocalDateTime fechaHora = null;
+            if (datos.get("fechaHora") != null && !datos.get("fechaHora").toString().isBlank()) {
+                try {
+                    fechaHora = LocalDateTime.parse(datos.get("fechaHora").toString());
+                } catch (java.time.format.DateTimeParseException e) {
+                    throw new IllegalArgumentException("Seleccione una fecha futura dentro de los horarios disponibles del médico.");
+                }
+            }
+            Cita cita = citaService.agendarSeguimiento(
+                    Long.valueOf(datos.get("citaOrigenId").toString()),
+                    Long.valueOf(datos.get("medicoId").toString()),
+                    datos.get("tipo") != null ? datos.get("tipo").toString() : null,
+                    fechaHora,
+                    datos.get("observaciones") != null ? datos.get("observaciones").toString() : null,
+                    datos.get("prioridad") != null ? datos.get("prioridad").toString() : null);
+
+            Map<String, Object> respuesta = new java.util.LinkedHashMap<>();
+            respuesta.put("id", cita.getId());
+            respuesta.put("fechaHora", cita.getFechaHora().toString());
+            respuesta.put("tipo", cita.getTipoSeguimiento().name());
+            respuesta.put("paciente", cita.getPaciente().getNombreCompleto());
+            respuesta.put("mensaje", "Cita de seguimiento agendada exitosamente. Tipo: "
+                    + cita.getTipoSeguimiento().getEtiqueta() + ". Paciente: " + cita.getPaciente().getNombreCompleto() + ".");
+            return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

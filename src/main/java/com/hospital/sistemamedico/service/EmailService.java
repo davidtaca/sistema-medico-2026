@@ -1,9 +1,14 @@
 package com.hospital.sistemamedico.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /**
  * Servicio encargado del envío de correos electrónicos reales del sistema,
@@ -17,6 +22,23 @@ public class EmailService {
 
     @Autowired
     private JavaMailSender mailSender;
+
+    /** Teléfono de la clínica que se muestra en el pie de los correos (RN-GLOBAL-006); configurable con app.hospital.telefono. */
+    @Value("${app.hospital.telefono:}")
+    private String telefonoHospital;
+
+    private static final DateTimeFormatter FORMATO_FECHA =
+            DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-GT"));
+    private static final DateTimeFormatter FORMATO_HORA = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** Pie estándar de todo correo automático (RN-GLOBAL-006). */
+    private String pieDeCorreo() {
+        String pie = "Este es un correo automático del Sistema Informático Hospitalario. No responda a este mensaje.";
+        if (telefonoHospital != null && !telefonoHospital.isBlank()) {
+            pie += " Para consultas, comuníquese al teléfono " + telefonoHospital + ".";
+        }
+        return pie;
+    }
 
     /**
      * Envía el correo de bienvenida a un paciente recién registrado (CU-02, paso final).
@@ -40,32 +62,70 @@ public class EmailService {
 
     /**
      * Notifica al paciente que su médico le agendó una cita de seguimiento
-     * (CU-08, FA02).
+     * (CU-12, RN-CU11-04): fecha, hora, tipo de seguimiento, médico, sucursal
+     * y observaciones.
      *
      * @param correoDestino correo electrónico del paciente
      * @param nombrePaciente nombre completo del paciente
      * @param nombreMedico nombre del médico de la cita
-     * @param especialidad especialidad de la cita
      * @param sucursal sucursal donde se atenderá
-     * @param fechaHora fecha y hora de la cita, ya formateada como texto
+     * @param fechaHora fecha y hora de la cita
+     * @param tipoSeguimiento etiqueta del tipo de seguimiento
+     * @param observaciones observaciones escritas por el médico
+     * @return true si el correo se envió
      */
-    public void enviarNotificacionSeguimiento(String correoDestino, String nombrePaciente, String nombreMedico,
-                                              String especialidad, String sucursal, String fechaHora) {
+    public boolean enviarNotificacionSeguimiento(String correoDestino, String nombrePaciente, String nombreMedico,
+                                                 String sucursal, LocalDateTime fechaHora, String tipoSeguimiento,
+                                                 String observaciones) {
         try {
             SimpleMailMessage mensaje = new SimpleMailMessage();
             mensaje.setTo(correoDestino);
-            mensaje.setSubject("Cita de Seguimiento - Hospital Sistema Médico");
+            mensaje.setSubject("Cita de Seguimiento Agendada - Hospital Sistema Médico");
             mensaje.setText("Estimado(a) " + nombrePaciente + ",\n\n"
                     + "Su médico le agendó una cita de seguimiento:\n\n"
+                    + "Fecha: " + FORMATO_FECHA.format(fechaHora) + "\n"
+                    + "Hora: " + FORMATO_HORA.format(fechaHora) + "\n"
+                    + "Tipo de seguimiento: " + tipoSeguimiento + "\n"
                     + "Médico: " + nombreMedico + "\n"
-                    + "Especialidad: " + especialidad + "\n"
                     + "Sucursal: " + sucursal + "\n"
-                    + "Fecha y hora: " + fechaHora + "\n\n"
+                    + "Observaciones: " + observaciones + "\n\n"
                     + "Ingrese al portal para completar el pago y confirmar su cita.\n\n"
-                    + "Este es un correo automático del Sistema Informático Hospitalario. No responda a este mensaje.");
+                    + pieDeCorreo());
             mailSender.send(mensaje);
+            return true;
         } catch (Exception e) {
-            System.err.println("No se pudo enviar la notificación de seguimiento: " + e.getMessage());
+            // RN-GLOBAL-006: un fallo de envío no debe impedir que la cita quede agendada
+            System.err.println("Error al enviar notificación por correo electrónico al paciente " + nombrePaciente
+                    + ". Se reintentará automáticamente. Detalle: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Envía el recordatorio de una cita de seguimiento (CU-12, RN-CU11-05).
+     *
+     * @return true si el correo se envió; false si falló (el recordatorio se reintenta después)
+     */
+    public boolean enviarRecordatorioSeguimiento(String correoDestino, String nombrePaciente, String nombreMedico,
+                                                 String sucursal, LocalDateTime fechaHora, String tipoSeguimiento) {
+        try {
+            SimpleMailMessage mensaje = new SimpleMailMessage();
+            mensaje.setTo(correoDestino);
+            mensaje.setSubject("Recordatorio: Su Cita de Seguimiento Mañana");
+            mensaje.setText("Estimado(a) " + nombrePaciente + ",\n\n"
+                    + "Le recordamos su próxima cita de seguimiento:\n\n"
+                    + "Fecha: " + FORMATO_FECHA.format(fechaHora) + "\n"
+                    + "Hora: " + FORMATO_HORA.format(fechaHora) + "\n"
+                    + "Tipo de seguimiento: " + tipoSeguimiento + "\n"
+                    + "Médico: " + nombreMedico + "\n"
+                    + "Sucursal: " + sucursal + "\n\n"
+                    + pieDeCorreo());
+            mailSender.send(mensaje);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Error al enviar notificación por correo electrónico al paciente " + nombrePaciente
+                    + ". Se reintentará automáticamente. Detalle: " + e.getMessage());
+            return false;
         }
     }
 
