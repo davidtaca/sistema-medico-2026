@@ -28,6 +28,9 @@ public class CatalogoService {
     private AuditoriaService auditoriaService;
 
     @Autowired
+    private PortalService portalService;
+
+    @Autowired
     public CatalogoService(List<CatalogoAdaptador> adaptadores) {
         adaptadores.stream().sorted(Comparator.comparingInt(CatalogoAdaptador::orden))
                 .forEach(a -> catalogos.put(a.clave(), a));
@@ -108,6 +111,7 @@ public class CatalogoService {
         CatalogoAdaptador a = adaptador(clave);
         String nombre = a.crear(datos, admin);
         auditoriaService.registrar(admin, "CREAR_CATALOGO", a.titulo(), null, "Se creó el registro " + nombre + " en el catálogo " + a.titulo() + ".");
+        portalService.invalidar();
         return "El registro " + nombre + " ha sido creado exitosamente.";
     }
 
@@ -118,6 +122,7 @@ public class CatalogoService {
         CatalogoAdaptador a = adaptador(clave);
         String nombre = a.actualizar(id, datos, admin);
         auditoriaService.registrar(admin, "ACTUALIZAR_CATALOGO", a.titulo(), id, "Se actualizó el registro " + nombre + " del catálogo " + a.titulo() + ".");
+        portalService.invalidar();
         return "El registro " + nombre + " ha sido actualizado correctamente.";
     }
 
@@ -128,6 +133,7 @@ public class CatalogoService {
         CatalogoAdaptador a = adaptador(clave);
         String nombre = a.eliminar(id, admin);
         auditoriaService.registrar(admin, "ELIMINAR_CATALOGO", a.titulo(), id, "Se eliminó (baja lógica) el registro " + nombre + " del catálogo " + a.titulo() + ".");
+        portalService.invalidar();
         return "El registro " + nombre + " ha sido eliminado correctamente.";
     }
 

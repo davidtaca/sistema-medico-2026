@@ -58,6 +58,13 @@ public class SignosVitales {
     @Column(name = "fecha_registro", nullable = false)
     private LocalDateTime fechaRegistro = LocalDateTime.now();
 
+    /**
+     * Alertas clínicas detectadas al registrar los signos vitales (valores fuera del rango normal,
+     * RN-CU07-06), separadas por " | ". Queda vacío si todo estaba dentro de lo normal.
+     */
+    @Column(length = 500)
+    private String alertas;
+
     public SignosVitales() {}
 
     // Getters y setters
@@ -83,4 +90,6 @@ public class SignosVitales {
     public void setEmergencia(boolean emergencia) { this.emergencia = emergencia; }
     public LocalDateTime getFechaRegistro() { return fechaRegistro; }
     public void setFechaRegistro(LocalDateTime fechaRegistro) { this.fechaRegistro = fechaRegistro; }
+    public String getAlertas() { return alertas; }
+    public void setAlertas(String alertas) { this.alertas = alertas; }
 }

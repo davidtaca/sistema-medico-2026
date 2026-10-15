@@ -187,7 +187,25 @@ public class CitaController {
     public ResponseEntity<?> reasignarMedico(@PathVariable Long id, @RequestBody Map<String, Object> datos) {
         try {
             Long nuevoMedicoId = Long.valueOf(datos.get("medicoId").toString());
-            return ResponseEntity.ok(citaService.reasignarMedico(id, nuevoMedicoId));
+            Long usuarioId = datos.get("usuarioId") != null ? Long.valueOf(datos.get("usuarioId").toString()) : null;
+            String nota = datos.get("nota") != null ? datos.get("nota").toString() : null;
+            return ResponseEntity.ok(citaService.reasignarMedico(id, nuevoMedicoId, usuarioId, nota));
+        } catch (IllegalArgumentException | NullPointerException e) {
+            String mensaje = e instanceof NullPointerException ? "Debe seleccionar un médico." : e.getMessage();
+            return ResponseEntity.badRequest().body(Map.of("error", mensaje));
+        }
+    }
+
+    /** CU-05 FA01: registra a un paciente que llega por emergencia sin cita previa. */
+    @PostMapping("/emergencia")
+    public ResponseEntity<?> registrarEmergencia(@RequestBody Map<String, Object> datos) {
+        try {
+            if (datos.get("pacienteId") == null || datos.get("usuarioId") == null) {
+                throw new IllegalArgumentException("Debe indicar el paciente y el usuario que registra la emergencia.");
+            }
+            Cita cita = citaService.registrarEmergencia(Long.valueOf(datos.get("pacienteId").toString()),
+                    Long.valueOf(datos.get("usuarioId").toString()));
+            return ResponseEntity.status(HttpStatus.CREATED).body(cita);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

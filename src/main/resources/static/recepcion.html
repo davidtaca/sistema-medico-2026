@@ -76,8 +76,39 @@
 </div>
 
 <script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'RECEPCIONISTA' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de recepción.');
+        window.location.href = '/index.html';
+    }
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+
     let modoBusqueda = 'DPI';
     let citaActualId = null;
+    let citaMostrada = null;   // última cita mostrada, para refrescar su estado automáticamente (RNF-021)
+
+    // RNF-021: la pantalla se actualiza sola cuando cambia el estado de la cita que se está mostrando
+    // (por ejemplo, cuando el cajero registra el pago o enfermería llama al paciente)
+    setInterval(async () => {
+        if (!citaMostrada || document.getElementById('overlayReasignar').style.display === 'flex') return;
+        try {
+            const r = await fetch(`/api/citas/${citaMostrada.id}`);
+            if (!r.ok) return;
+            const cita = await r.json();
+            if (cita.estado !== citaMostrada.estado) {
+                document.getElementById('resultado').innerHTML = '';
+                mostrarCita(cita, citaMostrada.paciente);
+                const mensaje = document.getElementById('mensaje');
+                mensaje.textContent = 'El estado de la cita cambió y la pantalla se actualizó.';
+                mensaje.className = 'info';
+            }
+        } catch (e) { /* se reintenta en el siguiente ciclo */ }
+    }, 8000);
 
     function cambiarModo(modo) {
         modoBusqueda = modo;
@@ -104,8 +135,21 @@
         mensaje.textContent = '';
         mensaje.className = '';
 
+        citaMostrada = null;
+
         if (!valor) {
             mensaje.textContent = 'Debe ingresar un número de cita o DPI para buscar.';
+            mensaje.className = 'error';
+            return;
+        }
+        if (modoBusqueda === 'DPI') {
+            // RN-GLOBAL-001
+            let error = null;
+            if (!/^\d+$/.test(valor)) error = 'El DPI debe contener únicamente números. No se permiten letras ni caracteres especiales.';
+            else if (valor.length !== 13) error = `El DPI debe contener exactamente 13 dígitos. Usted ingresó ${valor.length} dígitos.`;
+            if (error) { mensaje.textContent = error; mensaje.className = 'error'; return; }
+        } else if (!/^\d{1,9}$/.test(valor)) {
+            mensaje.textContent = 'El número de cita debe contener únicamente números.';
             mensaje.className = 'error';
             return;
         }
@@ -138,7 +182,7 @@
         }
 
         if (!cita) {
-            mensaje.textContent = 'No se encontró una cita asociada a los parámetros ingresados.';
+            mensaje.textContent = 'No se encontró una cita asociada a los parámetros ingresados. Verifique los datos e intente nuevamente.';
             mensaje.className = 'error';
             return;
         }
@@ -162,23 +206,53 @@
       <p><strong>El paciente ${paciente.nombreCompleto} está registrado pero no tiene citas activas.</strong></p>
       <p class="sub-texto">Puede crear una nueva cita para este paciente.</p>
       <button class="accion btn-nueva" onclick="window.location.href='/cita.html?pacienteId=${paciente.id}'">Nueva Cita (Walk-in)</button>
+      <button class="accion btn-urgente" onclick="registrarEmergencia(${paciente.id}, '${esc(paciente.nombreCompleto).replace(/'/g, '')}')">Registrar Emergencia</button>
     </div>
   `;
     }
 
+    // CU-05 FA01: paciente que llega por emergencia, sin cita previa
+    async function registrarEmergencia(pacienteId, nombre) {
+        const mensaje = document.getElementById('mensaje');
+        if (!confirm(`¿Registrar al paciente ${nombre} con prioridad de EMERGENCIA?`)) return;
+        try {
+            const respuesta = await fetch('/api/citas/emergencia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pacienteId, usuarioId: usuario.id })
+            });
+            const resultado = await respuesta.json();
+            if (!respuesta.ok) {
+                mensaje.textContent = resultado.error || 'Error al registrar la emergencia.';
+                mensaje.className = 'error';
+                return;
+            }
+            mensaje.textContent = `Paciente ${nombre} registrado con prioridad de EMERGENCIA. El paciente debe pasar directamente a toma de signos vitales.`;
+            mensaje.className = 'exito';
+            document.getElementById('resultado').innerHTML = '';
+            citaMostrada = null;
+        } catch (error) {
+            mensaje.textContent = 'Error al registrar la emergencia.';
+            mensaje.className = 'error';
+        }
+    }
+
     function mostrarCita(cita, paciente) {
         citaActualId = cita.id;
+        citaMostrada = { id: cita.id, estado: cita.estado, paciente };
         const fecha = new Date(cita.fechaHora).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
         const div = document.createElement('div');
         div.className = 'cita';
 
         div.innerHTML = `
-    <p><strong>Paciente:</strong> ${paciente.nombreCompleto} ${cita.emergencia ? '<span class="emergencia">EMERGENCIA</span>' : ''}</p>
+    <p><strong>Paciente:</strong> ${esc(paciente.nombreCompleto)} ${cita.emergencia ? '<span class="emergencia">EMERGENCIA</span>' : ''}</p>
     <p><strong>No. Cita:</strong> ${cita.id}</p>
-    <p><strong>Especialidad:</strong> ${cita.especialidad.nombre}</p>
-    <p><strong>Sucursal:</strong> ${cita.sucursal.nombre}</p>
+    <p><strong>Prioridad:</strong> ${cita.emergencia ? 'Emergencia' : 'Normal'}</p>
+    <p><strong>Especialidad:</strong> ${esc(cita.especialidad.nombre)}</p>
+    <p><strong>Sucursal:</strong> ${esc(cita.sucursal.nombre)}</p>
     <p><strong>Fecha:</strong> ${fecha}</p>
-    <p><strong>Motivo:</strong> ${cita.motivoConsulta || '-'}</p>
+    <p><strong>Motivo:</strong> ${esc(cita.motivoConsulta || '-')}</p>
+    <p><strong>Hora de llegada:</strong> ${cita.horaLlegada ? new Date(cita.horaLlegada).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' }) : 'Aún no registrada'}</p>
     <p><strong>Estado:</strong> ${badgeEstado(cita.estado)}</p>
   `;
 
@@ -242,6 +316,7 @@
                 : `La llegada del paciente ${nombrePaciente} ha sido registrada exitosamente. El paciente debe pasar a la sala de espera.`;
             mensaje.className = 'exito';
             document.getElementById('resultado').innerHTML = '';
+            citaMostrada = null;
 
         } catch (error) {
             mensaje.textContent = 'Error al registrar la llegada.';
@@ -292,7 +367,7 @@
             const respuesta = await fetch(`/api/citas/${citaActualId}/reasignar-medico`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ medicoId: nuevoMedicoId })
+                body: JSON.stringify({ medicoId: nuevoMedicoId, usuarioId: usuario.id, nota: document.getElementById('notaReasignacion').value.trim() })
             });
             const resultado = await respuesta.json();
 
@@ -302,14 +377,17 @@
             }
 
             cerrarModalReasignar();
+            document.getElementById('notaReasignacion').value = '';
             mensaje.textContent = 'Médico reasignado correctamente.';
             mensaje.className = 'exito';
             document.getElementById('resultado').innerHTML = '';
+            citaMostrada = null;
 
         } catch (error) {
             alert('No se pudo conectar con el servidor.');
         }
     }
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

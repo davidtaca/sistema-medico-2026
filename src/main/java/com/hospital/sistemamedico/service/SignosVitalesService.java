@@ -60,30 +60,27 @@ public class SignosVitalesService {
         }
 
         Usuario enfermero = usuarioService.buscarPorId(enfermeroId);
-        if (enfermero.getRol() != Rol.ENFERMERO) {
+        if (enfermero.getRol() != Rol.ENFERMERO && enfermero.getRol() != Rol.ADMINISTRADOR) {
             throw new IllegalArgumentException("El usuario indicado no es personal de enfermería.");
         }
 
-        // Validación de rangos de captura (RN-CU07-01 a RN-CU07-05) — bloqueantes,
-        // a diferencia de las alertas clínicas (presión alta, fiebre, etc.) que
-        // solo se muestran como advertencia en el frontend sin impedir el guardado
-        if (presionSistolica == null || presionSistolica < 60 || presionSistolica > 250) {
-            throw new IllegalArgumentException("La presión sistólica debe estar entre 60 y 250 mmHg.");
+        // Validación de campos obligatorios y rangos de captura (RN-CU07-01 a RN-CU07-05) — bloqueantes,
+        // a diferencia de las alertas clínicas (RN-CU07-06), que solo advierten y no impiden el guardado
+        if (presionSistolica == null || presionSistolica < 60 || presionSistolica > 250
+                || presionDiastolica == null || presionDiastolica < 40 || presionDiastolica > 150) {
+            throw new IllegalArgumentException("La presión arterial debe ingresarse en formato sistólica/diastólica (ej: 120/80) dentro de rangos válidos.");
         }
-        if (presionDiastolica == null || presionDiastolica < 40 || presionDiastolica > 150) {
-            throw new IllegalArgumentException("La presión diastólica debe estar entre 40 y 150 mmHg.");
+        if (temperatura == null || temperatura < 34.0 || temperatura > 42.0 || decimales(temperatura) > 1) {
+            throw new IllegalArgumentException("La temperatura debe estar entre 34.0 y 42.0°C con un decimal.");
         }
-        if (temperatura == null || temperatura < 34 || temperatura > 42) {
-            throw new IllegalArgumentException("La temperatura debe estar entre 34 y 42 °C.");
+        if (peso == null || peso < 0.5 || peso > 300 || decimales(peso) > 2) {
+            throw new IllegalArgumentException("El peso debe estar entre 0.5 y 300 kg con dos decimales.");
         }
-        if (peso == null || peso < 0.5 || peso > 300) {
-            throw new IllegalArgumentException("El peso debe estar entre 0.5 y 300 kg.");
-        }
-        if (talla == null || talla < 30 || talla > 250) {
-            throw new IllegalArgumentException("La talla debe estar entre 30 y 250 cm.");
+        if (talla == null || talla < 30 || talla > 250 || decimales(talla) > 2) {
+            throw new IllegalArgumentException("La talla debe estar entre 30 y 250 cm con dos decimales.");
         }
         if (frecuenciaCardiaca == null || frecuenciaCardiaca < 30 || frecuenciaCardiaca > 220) {
-            throw new IllegalArgumentException("La frecuencia cardíaca debe estar entre 30 y 220 lpm.");
+            throw new IllegalArgumentException("La frecuencia cardíaca debe estar entre 30 y 220 latidos por minuto.");
         }
 
         SignosVitales sv = new SignosVitales();
@@ -96,6 +93,7 @@ public class SignosVitalesService {
         sv.setTalla(talla);
         sv.setFrecuenciaCardiaca(frecuenciaCardiaca);
         sv.setEmergencia(emergencia);
+        sv.setAlertas(String.join(" | ", alertasClinicas(presionSistolica, presionDiastolica, temperatura, frecuenciaCardiaca)));
 
         SignosVitales guardado = signosVitalesRepository.save(sv);
 
@@ -105,6 +103,36 @@ public class SignosVitalesService {
         citaService.completarSignosVitales(citaId, emergencia);
 
         return guardado;
+    }
+
+    /** true si la cita ya tiene signos vitales registrados. */
+    public boolean tieneSignos(Long citaId) {
+        return signosVitalesRepository.existsByCitaId(citaId);
+    }
+
+    /** Cantidad de decimales con que se escribió un valor (ignorando ceros finales, por ejemplo 36.50 tiene 1). */
+    private int decimales(double valor) {
+        return Math.max(0, java.math.BigDecimal.valueOf(valor).stripTrailingZeros().scale());
+    }
+
+    /**
+     * Alertas clínicas de RN-CU07-06: valores dentro del rango de captura pero fuera del rango normal.
+     * Presión arterial normal 90/60 a 140/90 mmHg, temperatura 36.0 a 37.5 °C y frecuencia cardíaca 60 a 100 lpm.
+     *
+     * @return la lista de mensajes de alerta (vacía si todo es normal)
+     */
+    public java.util.List<String> alertasClinicas(int sistolica, int diastolica, double temperatura, int frecuencia) {
+        java.util.List<String> alertas = new java.util.ArrayList<>();
+        if (sistolica < 90 || sistolica > 140 || diastolica < 60 || diastolica > 90) {
+            alertas.add("Presión arterial fuera de rango normal.");
+        }
+        if (temperatura < 36.0 || temperatura > 37.5) {
+            alertas.add("Temperatura fuera de rango normal.");
+        }
+        if (frecuencia < 60 || frecuencia > 100) {
+            alertas.add("Frecuencia cardíaca fuera de rango normal.");
+        }
+        return alertas;
     }
 
     /**

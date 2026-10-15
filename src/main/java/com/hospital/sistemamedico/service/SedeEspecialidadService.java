@@ -36,6 +36,9 @@ public class SedeEspecialidadService {
     @Autowired
     private AuditoriaService auditoriaService;
 
+    @Autowired
+    private PortalService portalService;
+
     /**
      * Lista las asignaciones con paginación (paso 3).
      *
@@ -101,6 +104,7 @@ public class SedeEspecialidadService {
         SedeEspecialidad guardada = repository.save(new SedeEspecialidad(sucursal, especialidad));
         auditoriaService.registrar(admin, "ASIGNAR_ESPECIALIDAD_SEDE", "SedeEspecialidad", guardada.getId(),
                 "Se asignó la especialidad " + especialidad.getNombre() + " a la sede " + sucursal.getNombre() + ".");
+        portalService.invalidar();
         return guardada;
     }
 
@@ -118,6 +122,7 @@ public class SedeEspecialidadService {
         repository.delete(s);
         auditoriaService.registrar(admin, "ELIMINAR_ESPECIALIDAD_SEDE", "SedeEspecialidad", id,
                 "Se eliminó la especialidad " + s.getEspecialidad().getNombre() + " de la sede " + s.getSucursal().getNombre() + ".");
+        portalService.invalidar();
     }
 
     /**

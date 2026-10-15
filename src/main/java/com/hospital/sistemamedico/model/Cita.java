@@ -82,6 +82,10 @@ public class Cita {
     @Column(name = "recordatorio_enviado", nullable = false, columnDefinition = "boolean default false")
     private boolean recordatorioEnviado = false;
 
+    /** Hora exacta en que recepción registró la llegada del paciente (CU-05); null si aún no llegó. */
+    @Column(name = "hora_llegada")
+    private LocalDateTime horaLlegada;
+
     public Cita() {}
 
     // Getters y setters
@@ -117,4 +121,6 @@ public class Cita {
     public void setPrioridad(PrioridadSeguimiento prioridad) { this.prioridad = prioridad; }
     public boolean isRecordatorioEnviado() { return recordatorioEnviado; }
     public void setRecordatorioEnviado(boolean recordatorioEnviado) { this.recordatorioEnviado = recordatorioEnviado; }
+    public LocalDateTime getHoraLlegada() { return horaLlegada; }
+    public void setHoraLlegada(LocalDateTime horaLlegada) { this.horaLlegada = horaLlegada; }
 }

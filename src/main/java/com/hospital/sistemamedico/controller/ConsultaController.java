@@ -242,6 +242,7 @@ public class ConsultaController {
         m.put("talla", s.getTalla());
         m.put("frecuenciaCardiaca", s.getFrecuenciaCardiaca());
         m.put("emergencia", s.isEmergencia());
+        m.put("alertas", s.getAlertas() == null || s.getAlertas().isBlank() ? java.util.List.of() : java.util.Arrays.asList(s.getAlertas().split(" \\| ")));
         m.put("fechaRegistro", s.getFechaRegistro().toString());
         return m;
     }

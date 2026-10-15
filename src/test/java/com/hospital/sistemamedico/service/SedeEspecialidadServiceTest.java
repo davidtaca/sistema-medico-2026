@@ -46,6 +46,7 @@ class SedeEspecialidadServiceTest {
         ReflectionTestUtils.setField(servicio, "especialidadRepository", especialidadRepository);
         ReflectionTestUtils.setField(servicio, "auditoriaService", auditoriaService);
         ReflectionTestUtils.setField(servicio, "usuarioService", usuarioService);
+        ReflectionTestUtils.setField(servicio, "portalService", mock(PortalService.class));
 
         admin = new Usuario();
         admin.setId(1L);

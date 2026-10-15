@@ -5,6 +5,7 @@ import com.hospital.sistemamedico.repository.CitaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -38,12 +39,15 @@ public class CitaService {
     @Autowired
     private AgendaService agendaService;
 
+    @Autowired
+    private AuditoriaService auditoriaService;
+
     /** Estados de una cita que ya no ocupan el horario del médico. */
     private static final List<EstadoCita> ESTADOS_QUE_LIBERAN_HORARIO = List.of(EstadoCita.CANCELADA, EstadoCita.NO_ASISTIO);
 
     /** Horario de atención usado para ofrecer citas de seguimiento (hasta que exista la agenda médica, CU-16). */
-    private static final java.time.LocalTime PRIMERA_HORA = java.time.LocalTime.of(8, 0);
-    private static final java.time.LocalTime ULTIMA_HORA = java.time.LocalTime.of(16, 30);
+    public static final java.time.LocalTime PRIMERA_HORA = java.time.LocalTime.of(8, 0);
+    public static final java.time.LocalTime ULTIMA_HORA = java.time.LocalTime.of(16, 30);
 
     @Autowired
     private UsuarioService usuarioService;
@@ -134,6 +138,12 @@ public class CitaService {
             throw new IllegalArgumentException("Debe seleccionar una fecha y hora futuras. Las citas no pueden agendarse en fechas pasadas o presentes.");
         }
 
+        // CU-03 paso 4: el paciente solo puede elegir horarios de atención (cada 30 minutos); las citas
+        // creadas por el personal (walk-in) y los seguimientos tienen sus propias reglas
+        if (agendadaPorPaciente && citaOrigenId == null && !esHorarioDeAtencion(fechaHora)) {
+            throw new IllegalArgumentException("Seleccione una fecha futura dentro de los horarios disponibles del médico.");
+        }
+
         // RN-CU03-03: longitud del motivo de consulta
         if (motivoConsulta == null || motivoConsulta.isBlank()) {
             throw new IllegalArgumentException("El motivo debe contener entre 10 y 2000 caracteres. Usted ingresó 0 caracteres.");
@@ -204,6 +214,55 @@ public class CitaService {
             throw new IllegalArgumentException("La cita debe estar confirmada antes de marcar la presencia del paciente.");
         }
         cita.setEstado(EstadoCita.PACIENTE_PRESENTE);
+        cita.setHoraLlegada(LocalDateTime.now());
+        return citaRepository.save(cita);
+    }
+
+    /**
+     * Registra a un paciente que llega por emergencia sin cita previa (CU-05, FA01). Se crea una
+     * cita presencial con prioridad de EMERGENCIA, en la sucursal de quien la registra, con un
+     * médico activo de esa sucursal (se prefiere Medicina General), directamente en estado
+     * PACIENTE_PRESENTE para que pase de inmediato a la toma de signos vitales. El cobro de una
+     * emergencia no pasa por la caja de citas pendientes de pago.
+     *
+     * @param pacienteId id del paciente
+     * @param usuarioId id del recepcionista (o administrador) que registra la emergencia
+     * @return la cita de emergencia creada
+     * @throws IllegalArgumentException si el usuario no es del personal de recepción, el paciente no
+     *         es válido o no hay un médico disponible en la sucursal
+     */
+    public Cita registrarEmergencia(Long pacienteId, Long usuarioId) {
+        Usuario registra = usuarioService.buscarPorId(usuarioId);
+        if (registra.getRol() != Rol.RECEPCIONISTA && registra.getRol() != Rol.ADMINISTRADOR) {
+            throw new IllegalArgumentException("Solo el personal de recepción puede registrar una emergencia.");
+        }
+        Usuario paciente = usuarioService.buscarPorId(pacienteId);
+        if (paciente.getRol() != Rol.PACIENTE) {
+            throw new IllegalArgumentException("El usuario indicado no es un paciente.");
+        }
+        Sucursal sucursal = registra.getSucursal() != null ? registra.getSucursal()
+                : sucursalService.listarActivas().stream().findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No hay sucursales activas."));
+
+        List<Usuario> medicos = usuarioService.listarPorRol(Rol.MEDICO).stream()
+                .filter(m -> m.isActivo() && m.getSucursal() != null && m.getSucursal().getId().equals(sucursal.getId())
+                        && m.getEspecialidad() != null && m.getEspecialidad().isActivo())
+                .collect(java.util.stream.Collectors.toList());
+        Usuario medico = medicos.stream().filter(m -> m.getEspecialidad().getNombre().equalsIgnoreCase("Medicina General")).findFirst()
+                .or(() -> medicos.stream().findFirst())
+                .orElseThrow(() -> new IllegalArgumentException("No hay un médico disponible en la sucursal para atender la emergencia."));
+
+        Cita cita = new Cita();
+        cita.setPaciente(paciente);
+        cita.setMedico(medico);
+        cita.setSucursal(sucursal);
+        cita.setEspecialidad(medico.getEspecialidad());
+        cita.setFechaHora(LocalDateTime.now());
+        cita.setMotivoConsulta("Emergencia registrada en recepción");
+        cita.setEmergencia(true);
+        cita.setAgendadaPorPaciente(false);
+        cita.setEstado(EstadoCita.PACIENTE_PRESENTE);
+        cita.setHoraLlegada(LocalDateTime.now());
         return citaRepository.save(cita);
     }
 
@@ -365,7 +424,19 @@ public class CitaService {
      *         especialidad/sucursal con la cita
      */
     public Cita reasignarMedico(Long citaId, Long nuevoMedicoId) {
+        return reasignarMedico(citaId, nuevoMedicoId, null, null);
+    }
+
+    /**
+     * Igual que {@link #reasignarMedico(Long, Long)}, pero deja constancia en la bitácora de
+     * auditoría de quién hizo el cambio y, si se escribió, del motivo de la reasignación (CU-05, FA07).
+     *
+     * @param usuarioId id de quien reasigna (opcional; si no se indica no se registra en la bitácora)
+     * @param nota motivo de la reasignación (opcional)
+     */
+    public Cita reasignarMedico(Long citaId, Long nuevoMedicoId, Long usuarioId, String nota) {
         Cita cita = buscarPorId(citaId);
+        String medicoAnterior = cita.getMedico().getNombreCompleto();
         if (cita.getEstado() != EstadoCita.CONFIRMADA && cita.getEstado() != EstadoCita.PACIENTE_PRESENTE) {
             throw new IllegalArgumentException("Solo se puede reasignar el médico de citas en estado Confirmada o Paciente Presente.");
         }
@@ -380,7 +451,13 @@ public class CitaService {
             throw new IllegalArgumentException("El médico seleccionado no pertenece a la sucursal de la cita.");
         }
         cita.setMedico(nuevoMedico);
-        return citaRepository.save(cita);
+        Cita guardada = citaRepository.save(cita);
+        if (usuarioId != null) {
+            String motivo = nota == null || nota.isBlank() ? "" : " Motivo: " + nota.trim() + ".";
+            auditoriaService.registrar(usuarioService.buscarPorId(usuarioId), "REASIGNAR_MEDICO", "Cita", citaId,
+                    "Se reasignó la cita #" + citaId + " de " + medicoAnterior + " a " + nuevoMedico.getNombreCompleto() + "." + motivo);
+        }
+        return guardada;
     }
 
     // ------------------------------------------------------------------ CU-12

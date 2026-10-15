@@ -195,7 +195,8 @@
                 <div class="signo">Peso<strong>${s.peso} kg</strong></div>
                 <div class="signo">Talla<strong>${s.talla} cm</strong></div>
                 <div class="signo">Emergencia<strong>${s.emergencia ? 'Sí' : 'No'}</strong></div>
-            </div>`;
+            </div>
+            ${(s.alertas || []).map(a => `<div style="background:#fff5f5;border-left:4px solid #c53030;color:#c53030;padding:7px 10px;margin-top:8px;font-size:13px;border-radius:4px;">⚠ ${esc(a)}</div>`).join('')}`;
 
         // Historial clínico previo
         const h = document.getElementById('historial');
@@ -408,5 +409,6 @@
 
     cargar();
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

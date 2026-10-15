@@ -159,7 +159,7 @@
     }
 
     function alertaFuera(rango) {
-        return `<div class="alerta-fuera"><strong>Fuera de rango</strong>${rango ? ' (' + esc(rango) + ')' : ''}</div>`;
+        return `<div class="alerta-fuera"><strong>Fuera de rango</strong>${rango ? ' (' + esc(rango) + ')' : ''}<br><small>Los resultados están fuera del rango de referencia normal. Requiere revisión.</small></div>`;
     }
 
     function alternarAlerta(id, rango) {
@@ -194,5 +194,6 @@
 
     cargar();
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

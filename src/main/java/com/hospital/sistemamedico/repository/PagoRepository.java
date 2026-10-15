@@ -10,4 +10,6 @@ public interface PagoRepository extends JpaRepository<Pago, Long> {
     Optional<Pago> findByCitaId(Long citaId);
 
     boolean existsByCitaId(Long citaId);
+
+    Optional<Pago> findByIdempotencyKey(String idempotencyKey);
 }

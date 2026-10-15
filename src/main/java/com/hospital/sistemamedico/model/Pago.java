@@ -39,6 +39,22 @@ public class Pago {
     @Column(name = "fecha_pago", nullable = false)
     private LocalDateTime fechaPago = LocalDateTime.now();
 
+    /**
+     * Forma de pago tal como la eligió quien pagó: TARJETA (pago en línea), EFECTIVO, VISA,
+     * MASTERCARD o DEBITO (cobro en caja). Permite reimprimir el comprobante con el dato real.
+     */
+    @Column(name = "forma_pago")
+    private String formaPago;
+
+    /** Clave de idempotencia enviada por el navegador: evita cobrar dos veces si se repite la petición (RNF-016). */
+    @Column(name = "idempotency_key", unique = true)
+    private String idempotencyKey;
+
+    /** Cajero que registró el cobro presencial (null en los pagos en línea). */
+    @ManyToOne
+    @JoinColumn(name = "registrado_por_id")
+    private Usuario registradoPor;
+
     public Pago() {}
 
     // Getters y setters
@@ -52,6 +68,12 @@ public class Pago {
     public void setMetodoPago(MetodoPago metodoPago) { this.metodoPago = metodoPago; }
     public String getNumeroTransaccion() { return numeroTransaccion; }
     public void setNumeroTransaccion(String numeroTransaccion) { this.numeroTransaccion = numeroTransaccion; }
+    public String getFormaPago() { return formaPago; }
+    public void setFormaPago(String formaPago) { this.formaPago = formaPago; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public Usuario getRegistradoPor() { return registradoPor; }
+    public void setRegistradoPor(Usuario registradoPor) { this.registradoPor = registradoPor; }
     public LocalDateTime getFechaPago() { return fechaPago; }
     public void setFechaPago(LocalDateTime fechaPago) { this.fechaPago = fechaPago; }
 }

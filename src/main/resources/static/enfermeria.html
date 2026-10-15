@@ -4,228 +4,240 @@
     <meta charset="UTF-8">
     <title>Enfermería - Signos Vitales</title>
     <style>
+        * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
-        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 480px; max-width: 100%; }
-        h2 { text-align: center; color: #2b6cb0; }
-        .paciente { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 560px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        h3 { color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin: 24px 0 4px; font-size: 16px; }
+        .sub { text-align: center; color: #718096; font-size: 12px; margin-top: -8px; }
+        .paciente { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .paciente.emergencia { border-left: 5px solid #c53030; background: #fff5f5; }
         .paciente p { margin: 2px 0; font-size: 14px; }
+        .badge-emergencia { display: inline-block; background: #c53030; color: white; font-size: 11px; font-weight: bold; padding: 2px 9px; border-radius: 10px; margin-left: 6px; }
         .estado { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; }
         .PACIENTE_PRESENTE { background: #2b6cb0; }
         .SIGNOS_VITALES { background: #6b46c1; }
-        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #2c5282; }
-        label { display: block; margin-top: 10px; font-size: 13px; color: #333; }
-        input[type=number] { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover:not(:disabled) { background: #2c5282; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        button.morado { background: #6b46c1; } button.morado:hover { background: #553c9a; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        label { display: block; margin-top: 12px; font-size: 13px; color: #333; }
+        label .req { color: #c53030; }
+        input[type=number], select { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        .invalido { border-color: #c53030 !important; background: #fff5f5; }
         .fila { display: flex; gap: 10px; }
         .fila > div { flex: 1; }
         .alerta { background: #fff5f5; border-left: 4px solid #c53030; padding: 8px 10px; margin-top: 8px; font-size: 12px; color: #c53030; border-radius: 4px; }
-        .checkbox { display: flex; align-items: center; margin-top: 12px; }
-        .checkbox input { width: auto; margin-right: 8px; }
-        .btn-guardar { width: 100%; margin-top: 15px; background: #2f855a; }
-        .btn-guardar:hover { background: #276749; }
-        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
-        .error { color: #c53030; }
-        .exito { color: #2f855a; }
-        #vacio { text-align: center; color: #718096; margin-top: 20px; }
+        .formulario { border: 2px solid #bee3f8; background: #f7fbff; border-radius: 10px; padding: 16px; margin-top: 18px; }
+        .contexto { text-align: center; color: #2b6cb0; margin: 0 0 4px; font-size: 16px; }
+        .acciones { display: flex; gap: 10px; margin-top: 16px; }
+        .acciones button { flex: 1; padding: 10px; font-size: 14px; }
+        #mensaje { margin-top: 15px; text-align: center; font-size: 14px; min-height: 18px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; }
+        .vacio { text-align: center; color: #718096; font-size: 14px; margin-top: 12px; }
+        .oculto { display: none; }
+        a.salir { display: block; text-align: center; margin-top: 22px; color: #718096; font-size: 13px; }
     </style>
 </head>
 <body>
 <div class="contenedor">
     <h2>Panel de Enfermería</h2>
-    <div id="lista"></div>
-    <div id="vacio" style="display:none;">No hay pacientes en espera.</div>
-    <div id="formularioContenedor"></div>
+    <p class="sub">La lista se actualiza cada 15 segundos</p>
     <div id="mensaje"></div>
+
+    <h3>Pacientes en sala de espera (Paciente Presente)</h3>
+    <div id="listaEspera"></div>
+
+    <h3>En toma de signos vitales</h3>
+    <div id="listaProceso"></div>
+
+    <!-- Formulario de captura (CU-07, pasos 2 a 13) -->
+    <div class="formulario oculto" id="formulario">
+        <h3 class="contexto" id="contexto" style="border:none;margin:0;"></h3>
+        <p class="sub" id="contextoCita"></p>
+
+        <div class="fila">
+            <div><label for="sistolica">Presión sistólica (60-250 mmHg) <span class="req">*</span></label>
+                <input type="number" id="sistolica" min="60" max="250" step="1"></div>
+            <div><label for="diastolica">Presión diastólica (40-150 mmHg) <span class="req">*</span></label>
+                <input type="number" id="diastolica" min="40" max="150" step="1"></div>
+        </div>
+        <div id="alertaPresion"></div>
+
+        <label for="temperatura">Temperatura (34.0-42.0 °C) <span class="req">*</span></label>
+        <input type="number" id="temperatura" min="34" max="42" step="0.1">
+        <div id="alertaTemperatura"></div>
+
+        <div class="fila">
+            <div><label for="peso">Peso (0.5-300 kg) <span class="req">*</span></label>
+                <input type="number" id="peso" min="0.5" max="300" step="0.01"></div>
+            <div><label for="talla">Talla (30-250 cm) <span class="req">*</span></label>
+                <input type="number" id="talla" min="30" max="250" step="0.01"></div>
+        </div>
+
+        <label for="frecuencia">Frecuencia cardíaca (30-220 lpm) <span class="req">*</span></label>
+        <input type="number" id="frecuencia" min="30" max="220" step="1">
+        <div id="alertaFrecuencia"></div>
+
+        <label for="esEmergencia">¿Emergencia?</label>
+        <select id="esEmergencia">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+        </select>
+
+        <div class="acciones">
+            <button class="gris" onclick="cancelarFormulario()">Cancelar</button>
+            <button id="btnRegistrar" onclick="registrarSignos()">Registrar Signos Vitales</button>
+        </div>
+    </div>
+
+    <a class="salir" href="/menu.html">← Volver al menú</a>
 </div>
 
 <script>
     const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
-
-    if (!usuario || usuario.rol !== 'ENFERMERO') {
+    if (!usuario || (usuario.rol !== 'ENFERMERO' && usuario.rol !== 'ADMINISTRADOR')) {
         alert('Debe iniciar sesión como personal de enfermería.');
         window.location.href = '/index.html';
     }
 
+    const $ = id => document.getElementById(id);
+    const mensaje = $('mensaje');
+    let citaActual = null;
+
+    function esc(texto) { const d = document.createElement('div'); d.textContent = texto == null ? '' : texto; return d.innerHTML; }
+    function aviso(texto, clase) { mensaje.textContent = texto; mensaje.className = clase || ''; }
+
+    // Paso 1: dos listas separadas, las emergencias primero (las ordena el servidor)
     async function cargarLista() {
         const citas = await fetch('/api/signos-vitales/pendientes').then(r => r.json());
-        const lista = document.getElementById('lista');
-        lista.innerHTML = '';
-        document.getElementById('formularioContenedor').innerHTML = '';
+        const enEspera = citas.filter(c => c.estado === 'PACIENTE_PRESENTE');
+        const enProceso = citas.filter(c => c.estado === 'SIGNOS_VITALES');
+        pintar($('listaEspera'), enEspera, 'No hay pacientes en sala de espera.', c => ({ texto: 'Llamar y Tomar Signos', clase: '', accion: () => llamar(c) }));
+        pintar($('listaProceso'), enProceso, 'No hay pacientes en toma de signos vitales.', c => ({ texto: 'Registrar Signos Vitales', clase: 'morado', accion: () => abrirFormulario(c) }));
+    }
 
-        if (citas.length === 0) {
-            document.getElementById('vacio').style.display = 'block';
-            return;
-        }
-        document.getElementById('vacio').style.display = 'none';
-
+    function pintar(contenedor, citas, textoVacio, boton) {
+        contenedor.innerHTML = citas.length === 0 ? `<p class="vacio">${textoVacio}</p>` : '';
         citas.forEach(c => {
             const div = document.createElement('div');
-            div.className = 'paciente';
-            div.innerHTML = `
-      <div>
-        <p><strong>${c.paciente.nombreCompleto}</strong></p>
-        <p>Cita #${c.id} — <span class="estado ${c.estado}">${c.estado.replace('_',' ')}</span></p>
-      </div>
-    `;
-            const boton = document.createElement('button');
-            boton.textContent = c.estado === 'PACIENTE_PRESENTE' ? 'Llamar y Tomar Signos' : 'Registrar Signos Vitales';
-            boton.onclick = () => atenderPaciente(c);
-            div.appendChild(boton);
-            lista.appendChild(div);
+            div.className = 'paciente' + (c.emergencia ? ' emergencia' : '');
+            const llegada = c.horaLlegada ? ` — llegó ${new Date(c.horaLlegada).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}` : '';
+            div.innerHTML = `<div>
+                <p><strong>${esc(c.paciente.nombreCompleto)}</strong>${c.emergencia ? '<span class="badge-emergencia">Emergencia</span>' : ''}</p>
+                <p>Cita #${c.id}${llegada} — <span class="estado ${c.estado}">${c.estado.replaceAll('_', ' ')}</span></p></div>`;
+            const b = boton(c);
+            const el = document.createElement('button');
+            el.textContent = b.texto;
+            if (b.clase) el.className = b.clase;
+            el.onclick = b.accion;
+            div.appendChild(el);
+            contenedor.appendChild(div);
         });
     }
 
-    async function atenderPaciente(cita) {
-        const mensaje = document.getElementById('mensaje');
-        mensaje.textContent = '';
-
-        if (cita.estado === 'PACIENTE_PRESENTE') {
-            const respuesta = await fetch(`/api/signos-vitales/llamar/${cita.id}`, { method: 'PUT' });
-            const resultado = await respuesta.json();
-            if (!respuesta.ok) {
-                mensaje.textContent = resultado.error;
-                mensaje.className = 'error';
-                return;
-            }
-            mensaje.textContent = `Turno anunciado. Paciente ${cita.paciente.nombreCompleto}, favor pasar a toma de signos vitales.`;
-            mensaje.className = 'exito';
-        }
-
-        mostrarFormulario(cita);
+    // Anuncio por altavoz con síntesis de voz (TTS)
+    function anunciar(texto) {
+        if (!('speechSynthesis' in window)) return;
+        const voz = new SpeechSynthesisUtterance(texto);
+        voz.lang = 'es-ES';
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(voz);
     }
 
-    function mostrarFormulario(cita) {
-        const contenedor = document.getElementById('formularioContenedor');
-        contenedor.innerHTML = `
-    <hr>
-    <h3 style="text-align:center; color:#2b6cb0;">${cita.paciente.nombreCompleto} — Cita #${cita.id}</h3>
-
-    <div class="fila">
-      <div>
-        <label for="sistolica">Presión sistólica (mmHg)</label>
-        <input type="number" id="sistolica">
-      </div>
-      <div>
-        <label for="diastolica">Presión diastólica (mmHg)</label>
-        <input type="number" id="diastolica">
-      </div>
-    </div>
-    <div id="alertaPresion"></div>
-
-    <label for="temperatura">Temperatura (°C)</label>
-    <input type="number" step="0.1" id="temperatura">
-    <div id="alertaTemperatura"></div>
-
-    <div class="fila">
-      <div>
-        <label for="peso">Peso (kg)</label>
-        <input type="number" step="0.1" id="peso">
-      </div>
-      <div>
-        <label for="talla">Talla (cm)</label>
-        <input type="number" step="0.1" id="talla">
-      </div>
-    </div>
-
-    <label for="frecuencia">Frecuencia cardíaca (lpm)</label>
-    <input type="number" id="frecuencia">
-    <div id="alertaFrecuencia"></div>
-
-    <div class="checkbox">
-      <input type="checkbox" id="esEmergencia">
-      <label for="esEmergencia" style="margin:0;">¿Emergencia?</label>
-    </div>
-
-    <button class="btn-guardar" onclick="registrarSignos(${cita.id})">Registrar Signos Vitales</button>
-  `;
-
-        ['sistolica','diastolica'].forEach(id => document.getElementById(id).addEventListener('input', revisarAlertas));
-        document.getElementById('temperatura').addEventListener('input', revisarAlertas);
-        document.getElementById('frecuencia').addEventListener('input', revisarAlertas);
+    // Paso 1: "Llamar y Tomar Signos" anuncia el turno y pasa la cita a "Signos Vitales"
+    async function llamar(cita) {
+        aviso('');
+        const r = await fetch(`/api/signos-vitales/llamar/${cita.id}`, { method: 'PUT' });
+        const d = await r.json();
+        if (!r.ok) { aviso(d.error, 'error'); return; }
+        const anuncio = `Turno número ${cita.id}. Paciente ${cita.paciente.nombreCompleto}, favor pasar a toma de signos vitales.`;
+        anunciar(anuncio);
+        aviso(anuncio, 'exito');
+        await cargarLista();
     }
 
-    function revisarAlertas() {
-        const sistolica = parseFloat(document.getElementById('sistolica').value);
-        const diastolica = parseFloat(document.getElementById('diastolica').value);
-        const temperatura = parseFloat(document.getElementById('temperatura').value);
-        const frecuencia = parseFloat(document.getElementById('frecuencia').value);
-
-        const alertaPresion = document.getElementById('alertaPresion');
-        alertaPresion.innerHTML = '';
-        if (!isNaN(sistolica) && !isNaN(diastolica)) {
-            if (sistolica > 140 || diastolica > 90) {
-                alertaPresion.innerHTML = `<div class="alerta">⚠ Presión arterial alta (valor normal aprox. 90-120 / 60-80 mmHg)</div>`;
-            } else if (sistolica < 90 || diastolica < 60) {
-                alertaPresion.innerHTML = `<div class="alerta">⚠ Presión arterial baja (valor normal aprox. 90-120 / 60-80 mmHg)</div>`;
-            }
-        }
-
-        const alertaTemp = document.getElementById('alertaTemperatura');
-        alertaTemp.innerHTML = '';
-        if (!isNaN(temperatura)) {
-            if (temperatura >= 38) {
-                alertaTemp.innerHTML = `<div class="alerta">⚠ Fiebre detectada (valor normal aprox. 36-37.5 °C)</div>`;
-            } else if (temperatura < 35.5) {
-                alertaTemp.innerHTML = `<div class="alerta">⚠ Temperatura baja (valor normal aprox. 36-37.5 °C)</div>`;
-            }
-        }
-
-        const alertaFrec = document.getElementById('alertaFrecuencia');
-        alertaFrec.innerHTML = '';
-        if (!isNaN(frecuencia)) {
-            if (frecuencia > 100) {
-                alertaFrec.innerHTML = `<div class="alerta">⚠ Frecuencia cardíaca elevada (valor normal aprox. 60-100 lpm)</div>`;
-            } else if (frecuencia < 60) {
-                alertaFrec.innerHTML = `<div class="alerta">⚠ Frecuencia cardíaca baja (valor normal aprox. 60-100 lpm)</div>`;
-            }
-        }
+    // Paso 2: el formulario se abre con el contexto de la cita (nombre del paciente y número de cita)
+    function abrirFormulario(cita) {
+        citaActual = cita;
+        aviso('');
+        ['sistolica', 'diastolica', 'temperatura', 'peso', 'talla', 'frecuencia'].forEach(id => { $(id).value = ''; $(id).classList.remove('invalido'); });
+        $('esEmergencia').value = cita.emergencia ? 'true' : 'false';
+        $('contexto').textContent = cita.paciente.nombreCompleto;
+        $('contextoCita').textContent = `Cita #${cita.id}`;
+        ['alertaPresion', 'alertaTemperatura', 'alertaFrecuencia'].forEach(id => $(id).innerHTML = '');
+        $('formulario').classList.remove('oculto');
+        $('formulario').scrollIntoView({ behavior: 'smooth' });
     }
 
-    async function registrarSignos(citaId) {
-        const mensaje = document.getElementById('mensaje');
-        mensaje.textContent = '';
+    function cancelarFormulario() {
+        citaActual = null;
+        $('formulario').classList.add('oculto');
+    }
 
+    // Alertas clínicas en tiempo real (RN-CU07-06): valor actual y rango esperado
+    function mostrarAlertas() {
+        const sis = parseFloat($('sistolica').value), dia = parseFloat($('diastolica').value);
+        const temp = parseFloat($('temperatura').value), fc = parseFloat($('frecuencia').value);
+        const alerta = (texto, actual, rango) => `<div class="alerta">⚠ ${texto} Valor actual: ${actual} (rango normal: ${rango}).</div>`;
+
+        $('alertaPresion').innerHTML = (!isNaN(sis) && !isNaN(dia) && (sis < 90 || sis > 140 || dia < 60 || dia > 90))
+            ? alerta('Presión arterial fuera de rango normal.', `${sis}/${dia} mmHg`, '90/60 a 140/90 mmHg') : '';
+        $('alertaTemperatura').innerHTML = (!isNaN(temp) && (temp < 36.0 || temp > 37.5))
+            ? alerta('Temperatura fuera de rango normal.', `${temp} °C`, '36.0 a 37.5 °C') : '';
+        $('alertaFrecuencia').innerHTML = (!isNaN(fc) && (fc < 60 || fc > 100))
+            ? alerta('Frecuencia cardíaca fuera de rango normal.', `${fc} lpm`, '60 a 100 lpm') : '';
+    }
+    ['sistolica', 'diastolica', 'temperatura', 'frecuencia'].forEach(id => $(id).addEventListener('input', mostrarAlertas));
+
+    // Resalta el campo al que se refiere el mensaje de error (FA02)
+    function resaltar(error) {
+        ['sistolica', 'diastolica', 'temperatura', 'peso', 'talla', 'frecuencia'].forEach(id => $(id).classList.remove('invalido'));
+        const m = error.toLowerCase();
+        if (m.includes('presión')) { $('sistolica').classList.add('invalido'); $('diastolica').classList.add('invalido'); }
+        else if (m.includes('temperatura')) $('temperatura').classList.add('invalido');
+        else if (m.includes('peso')) $('peso').classList.add('invalido');
+        else if (m.includes('talla')) $('talla').classList.add('invalido');
+        else if (m.includes('frecuencia')) $('frecuencia').classList.add('invalido');
+    }
+
+    // Pasos 9 a 13
+    async function registrarSignos() {
+        aviso('');
         const datos = {
-            citaId: citaId,
-            enfermeroId: usuario.id,
-            presionSistolica: document.getElementById('sistolica').value,
-            presionDiastolica: document.getElementById('diastolica').value,
-            temperatura: document.getElementById('temperatura').value,
-            peso: document.getElementById('peso').value,
-            talla: document.getElementById('talla').value,
-            frecuenciaCardiaca: document.getElementById('frecuencia').value,
-            emergencia: document.getElementById('esEmergencia').checked
+            citaId: citaActual.id, enfermeroId: usuario.id,
+            presionSistolica: $('sistolica').value, presionDiastolica: $('diastolica').value, temperatura: $('temperatura').value,
+            peso: $('peso').value, talla: $('talla').value, frecuenciaCardiaca: $('frecuencia').value,
+            emergencia: $('esEmergencia').value === 'true'
         };
-
+        const nombre = citaActual.paciente.nombreCompleto;
+        $('btnRegistrar').disabled = true;
         try {
-            const respuesta = await fetch('/api/signos-vitales', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(datos)
-            });
-            const resultado = await respuesta.json();
-
-            if (!respuesta.ok) {
-                mensaje.textContent = resultado.error || 'Error al registrar los signos vitales.';
-                mensaje.className = 'error';
+            const r = await fetch('/api/signos-vitales', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+            const d = await r.json();
+            if (!r.ok) {
+                aviso(d.error || 'Error al registrar los signos vitales.', 'error');
+                resaltar(d.error || '');
+                $('btnRegistrar').disabled = false;
                 return;
             }
-
-            const nombrePaciente = document.querySelector('#formularioContenedor h3').textContent.split(' — ')[0];
-            mensaje.textContent = datos.emergencia
-                ? `Signos vitales de emergencia registrados para paciente ${nombrePaciente}. El paciente debe pasar directamente a consulta médica.`
-                : `Signos vitales del paciente ${nombrePaciente} registrados correctamente. El paciente puede regresar a la sala de espera.`;
-            mensaje.className = 'exito';
-
-            cargarLista();
-
-        } catch (error) {
-            mensaje.textContent = 'No se pudo conectar con el servidor.';
-            mensaje.className = 'error';
+            // FA01: los de emergencia pasan directamente a consulta; el resto regresa a la sala de espera
+            aviso(datos.emergencia
+                ? `Signos vitales de emergencia registrados para paciente ${nombre}. El paciente debe pasar directamente a consulta médica.`
+                : `Signos vitales del paciente ${nombre} registrados correctamente. El paciente puede regresar a la sala de espera.`, 'exito');
+            cancelarFormulario();
+            $('btnRegistrar').disabled = false;
+            await cargarLista();   // se regresa al panel de enfermería
+        } catch (e) {
+            aviso('No se pudo conectar con el servidor.', 'error');
+            $('btnRegistrar').disabled = false;
         }
     }
 
     cargarLista();
+    setInterval(() => { if (!citaActual) cargarLista(); }, 15000);
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

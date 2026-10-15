@@ -27,6 +27,9 @@ public class PagoService {
     @Autowired
     private CitaService citaService;
 
+    @Autowired
+    private UsuarioService usuarioService;
+
     /**
      * Valida un número de tarjeta usando el algoritmo de Luhn (el mismo
      * algoritmo que usan los bancos y pasarelas de pago reales para detectar
@@ -80,10 +83,41 @@ public class PagoService {
      */
     public Pago registrarPago(Long citaId, BigDecimal monto, MetodoPago metodoPago, String numeroTransaccion,
                               String numeroTarjeta, String nombreTitular, String fechaVencimiento, String cvv) {
+        return registrarPago(citaId, monto, metodoPago, numeroTransaccion, numeroTarjeta, nombreTitular, fechaVencimiento, cvv,
+                null, null, null);
+    }
+
+    /**
+     * Igual que el método anterior, pero además guarda la forma de pago elegida
+     * (EFECTIVO, VISA, MASTERCARD, DEBITO o TARJETA), quién cobró en caja y aplica
+     * la clave de idempotencia (RNF-016): si ya existe un pago con esa clave se
+     * devuelve ese mismo pago en lugar de cobrar otra vez. En los pagos en línea
+     * con tarjeta completa, además, se simula la respuesta de la pasarela de pago
+     * (rechazos del CU-04, FA03 y RN-CU04-06).
+     *
+     * @param formaPago forma de pago a guardar; null = TARJETA si hay tarjeta completa, o el método
+     * @param idempotencyKey clave única enviada por el navegador para esta operación (opcional)
+     * @param registradoPorId id del cajero que cobra en caja (opcional)
+     */
+    public Pago registrarPago(Long citaId, BigDecimal monto, MetodoPago metodoPago, String numeroTransaccion,
+                              String numeroTarjeta, String nombreTitular, String fechaVencimiento, String cvv,
+                              String formaPago, String idempotencyKey, Long registradoPorId) {
+        // RNF-016: la misma operación repetida (doble clic, reintento de red) no cobra dos veces
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Pago previo = pagoRepository.findByIdempotencyKey(idempotencyKey.trim()).orElse(null);
+            if (previo != null) {
+                return previo;
+            }
+        }
+
         Cita cita = citaService.buscarPorId(citaId);
+        boolean enLinea = metodoPago == MetodoPago.TARJETA && numeroTarjeta != null;
 
         if (cita.getEstado() == EstadoCita.CANCELADA) {
-            throw new IllegalArgumentException("No se puede pagar una cita cancelada.");
+            // En el pago en línea una cita cancelada significa que la reserva (5 minutos) venció (RN-CU04-06)
+            throw new IllegalArgumentException(enLinea
+                    ? "Su sesión de pago ha expirado. Por favor, inicie el proceso de pago nuevamente."
+                    : "No se puede pagar una cita cancelada.");
         }
         if (pagoRepository.existsByCitaId(citaId)) {
             throw new IllegalArgumentException("Esta cita ya tiene un pago registrado.");
@@ -111,6 +145,7 @@ public class PagoService {
             }
             // El número de transacción de un pago en línea siempre se genera internamente,
             // nunca lo escribe el usuario
+            simularPasarela(numeroTarjeta);
             numeroTransaccion = "TXN-" + java.util.UUID.randomUUID().toString().substring(0, 12).toUpperCase();
         }
 
@@ -127,6 +162,12 @@ public class PagoService {
         pago.setMetodoPago(metodoPago);
         pago.setNumeroTransaccion(numeroTransaccion);
         pago.setFechaPago(LocalDateTime.now());
+        pago.setFormaPago(formaPago != null && !formaPago.isBlank() ? formaPago.trim().toUpperCase()
+                : (enLinea ? "TARJETA" : metodoPago.name()));
+        pago.setIdempotencyKey(idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim());
+        if (registradoPorId != null) {
+            pago.setRegistradoPor(usuarioService.buscarPorId(registradoPorId));
+        }
 
         Pago pagoGuardado = pagoRepository.save(pago);
 
@@ -134,6 +175,39 @@ public class PagoService {
         citaService.confirmarCita(citaId);
 
         return pagoGuardado;
+    }
+
+    /**
+     * Simula la respuesta de la pasarela de pago para el pago en línea (CU-04, FA03 y RN-CU04-06).
+     * Como no hay una pasarela real conectada, el resultado depende de los últimos dígitos de la
+     * tarjeta, usando los números de prueba habituales de las pasarelas de pago:
+     * 4000 0000 0000 0002 (rechazo del banco), ...9995 (fondos insuficientes), ...0127 (tarjeta
+     * inválida), ...0069 (tarjeta vencida), ...0119 (error de procesamiento) y ...0101 (error de
+     * comunicación). Cualquier otra tarjeta válida es aprobada (por ejemplo 4242 4242 4242 4242).
+     *
+     * @throws IllegalArgumentException con el mensaje de rechazo correspondiente
+     */
+    private void simularPasarela(String numeroTarjeta) {
+        String fin = numeroTarjeta.substring(numeroTarjeta.length() - 4);
+        switch (fin) {
+            case "0002" -> throw new IllegalArgumentException("La transacción con tarjeta fue rechazada por el banco. Por favor, verifique los datos de su tarjeta o intente con una tarjeta diferente.");
+            case "9995" -> throw new IllegalArgumentException("Su tarjeta fue rechazada por fondos insuficientes. Verifique su saldo e intente nuevamente.");
+            case "0127" -> throw new IllegalArgumentException("Su tarjeta fue rechazada. El número de tarjeta es inválido. Verifique los datos e intente nuevamente.");
+            case "0069" -> throw new IllegalArgumentException("Su tarjeta fue rechazada. La tarjeta está vencida. Utilice otra tarjeta de crédito o débito.");
+            case "0119" -> throw new IllegalArgumentException("El pago no pudo ser procesado. Por favor, intente nuevamente o utilice otra tarjeta.");
+            case "0101" -> throw new IllegalArgumentException("Error de comunicación con la pasarela de pago. Intente nuevamente en unos minutos.");
+            default -> { }
+        }
+    }
+
+    /**
+     * Busca un pago por su clave de idempotencia.
+     *
+     * @throws IllegalArgumentException si no existe ningún pago con esa clave
+     */
+    public Pago buscarPorIdempotencyKey(String clave) {
+        return pagoRepository.findByIdempotencyKey(clave)
+                .orElseThrow(() -> new IllegalArgumentException("Pago no encontrado."));
     }
 
     /**
