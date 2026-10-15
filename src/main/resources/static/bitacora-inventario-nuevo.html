@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Nuevo Movimiento de Inventario</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 30px 16px; margin: 0; color: #2d3748; }
+        .caja { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 520px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        label { display: block; margin-top: 14px; font-size: 14px; }
+        label .req { color: #c53030; }
+        select, input[type=text], input[type=number], textarea { width: 100%; padding: 9px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; font-size: 14px; }
+        textarea { min-height: 70px; resize: vertical; }
+        .invalido { border-color: #c53030 !important; background: #fff5f5; }
+        .panel { margin-top: 16px; border: 1px solid #bee3f8; background: #ebf8ff; border-radius: 8px; padding: 12px 14px; font-size: 13px; }
+        .panel h4 { margin: 0 0 8px; color: #2b6cb0; font-size: 13px; }
+        .panel .fila { display: flex; justify-content: space-between; padding: 2px 0; }
+        .panel .fila strong { color: #2d3748; }
+        .alerta { margin-top: 10px; background: #fffaf0; border-left: 4px solid #b7791f; color: #975a16; padding: 8px 10px; border-radius: 4px; font-size: 13px; }
+        .alerta.roja { background: #fff5f5; border-left-color: #c53030; color: #c53030; }
+        .botones { display: flex; gap: 10px; margin-top: 22px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; color: white; background: #2f855a; }
+        button:hover:not(:disabled) { background: #276749; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        #mensaje { margin-top: 14px; text-align: center; font-size: 14px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; }
+        .oculto { display: none; }
+        .ayuda { font-size: 12px; color: #718096; margin-top: 3px; }
+    </style>
+</head>
+<body>
+<div class="caja">
+    <h2>Nuevo Movimiento de Inventario</h2>
+
+    <label for="medicamento">Medicamento <span class="req">*</span>
+        <select id="medicamento" onchange="actualizarPanel()"><option value="">Seleccione...</option></select></label>
+
+    <label for="sucursal">Sucursal <span class="req">*</span>
+        <select id="sucursal" onchange="actualizarPanel()"><option value="">Seleccione...</option></select></label>
+
+    <label for="tipo">Tipo de movimiento <span class="req">*</span>
+        <select id="tipo" onchange="cambiarTipo()"><option value="">Seleccione...</option></select></label>
+
+    <label for="cantidad">Cantidad <span class="req">*</span>
+        <input type="number" id="cantidad" min="1" step="1" oninput="actualizarPanel()"></label>
+
+    <label for="costo" id="bloqueCosto" class="oculto">Costo unitario (Q) <span class="req">*</span>
+        <input type="number" id="costo" min="0" step="0.01"></label>
+
+    <label for="referencia" id="bloqueReferencia" class="oculto"><span id="etiquetaReferencia">Número de referencia</span>
+        <input type="text" id="referencia" maxlength="50"></label>
+
+    <label for="notas" id="bloqueNotas" class="oculto"><span id="etiquetaNotas">Notas</span> <span class="req" id="reqNotas">*</span>
+        <textarea id="notas" maxlength="500"></textarea>
+        <div class="ayuda" id="ayudaNotas">Entre 10 y 500 caracteres.</div></label>
+
+    <!-- Panel informativo de inventario en tiempo real -->
+    <div class="panel oculto" id="panel">
+        <h4>Inventario actual</h4>
+        <div class="fila"><span>Stock actual</span><strong id="pStock">—</strong></div>
+        <div class="fila"><span>Stock mínimo</span><strong id="pMinimo">—</strong></div>
+        <div class="fila"><span>Stock proyectado</span><strong id="pProyectado">—</strong></div>
+        <div class="fila"><span>Tipo de operación</span><strong id="pOperacion">—</strong></div>
+        <div class="alerta oculto" id="alertaPreventiva"></div>
+    </div>
+
+    <div id="mensaje"></div>
+    <div class="alerta roja oculto" id="alertaFinal"></div>
+
+    <div class="botones">
+        <button class="gris" onclick="cancelar()">Cancelar</button>
+        <button id="btnRegistrar" onclick="registrar()">Registrar Movimiento</button>
+    </div>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'FARMACEUTICO' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de farmacia.');
+        window.location.href = '/index.html';
+    }
+
+    let tipos = [], panel = null;
+    const mensaje = document.getElementById('mensaje');
+    const $ = id => document.getElementById(id);
+
+    async function iniciar() {
+        const op = await fetch('/api/bitacora-inventario/opciones').then(r => r.json());
+        tipos = op.tipos;
+        op.tipos.forEach(t => $('tipo').add(new Option(t.etiqueta, t.valor)));
+        op.medicamentos.forEach(m => $('medicamento').add(new Option(m.etiqueta, m.id)));
+        op.sucursales.forEach(s => $('sucursal').add(new Option(s.etiqueta, s.id)));
+        const p = new URLSearchParams(window.location.search);
+        if (p.get('medicamentoId')) $('medicamento').value = p.get('medicamentoId');
+        if (p.get('sucursalId')) $('sucursal').value = p.get('sucursalId');
+        actualizarPanel();
+    }
+
+    // Etiquetas y campos dinámicos según el tipo (RN-CU13-01)
+    function cambiarTipo() {
+        const t = tipos.find(x => x.valor === $('tipo').value);
+        $('bloqueCosto').classList.toggle('oculto', !t || t.valor !== 'COMPRA');
+        $('bloqueReferencia').classList.toggle('oculto', !t || !t.etiquetaReferencia);
+        if (t && t.etiquetaReferencia) $('etiquetaReferencia').textContent = t.etiquetaReferencia;
+
+        const notas = { COMPRA: ['Notas (opcional)', false], DEVOLUCION: ['Motivo de Devolución', true], RECLAMO: ['Motivo del Reclamo', true],
+                        AJUSTE_POSITIVO: ['Notas/Justificación', true], AJUSTE_NEGATIVO: ['Notas/Justificación', true] }[t && t.valor];
+        $('bloqueNotas').classList.toggle('oculto', !notas);
+        if (notas) {
+            $('etiquetaNotas').textContent = notas[0];
+            $('reqNotas').classList.toggle('oculto', !notas[1]);
+            $('ayudaNotas').textContent = notas[1] ? 'Entre 10 y 500 caracteres.' : 'Opcional; si la escribe, entre 10 y 500 caracteres.';
+        }
+        actualizarPanel();
+    }
+
+    // Panel de inventario, stock proyectado y alerta preventiva (FA05)
+    async function actualizarPanel() {
+        const med = $('medicamento').value, suc = $('sucursal').value;
+        if (!med || !suc) { $('panel').classList.add('oculto'); panel = null; return; }
+        if (!panel || panel.med !== med || panel.suc !== suc) {
+            const r = await fetch(`/api/bitacora-inventario/panel?medicamentoId=${med}&sucursalId=${suc}`);
+            const d = await r.json();
+            if (!r.ok) { $('panel').classList.add('oculto'); return; }
+            panel = { med, suc, ...d };
+        }
+        $('panel').classList.remove('oculto');
+        const t = tipos.find(x => x.valor === $('tipo').value);
+        const cant = parseInt($('cantidad').value, 10);
+        $('pStock').textContent = panel.existeInventario ? panel.stockActual : '0 (sin inventario registrado)';
+        $('pMinimo').textContent = panel.stockMinimo == null ? 'Sin definir' : panel.stockMinimo;
+        $('pOperacion').textContent = t ? (t.salida ? 'Salida' : 'Entrada') : '—';
+        let proyectado = null;
+        if (t && !isNaN(cant) && cant > 0) proyectado = t.salida ? panel.stockActual - cant : panel.stockActual + cant;
+        $('pProyectado').textContent = proyectado === null ? '—' : proyectado;
+        const alerta = $('alertaPreventiva');
+        if (proyectado !== null && panel.stockMinimo != null && proyectado <= panel.stockMinimo && proyectado >= 0) {
+            alerta.textContent = `${panel.medicamento}: Stock bajo — disponible: ${proyectado} (mínimo: ${panel.stockMinimo})`;
+            alerta.classList.remove('oculto');
+        } else {
+            alerta.classList.add('oculto');
+        }
+    }
+
+    // FA04
+    function cancelar() { window.location.href = '/bitacora-inventario.html'; }
+
+    function resaltar(error) {
+        ['medicamento', 'sucursal', 'tipo', 'cantidad', 'costo', 'notas', 'referencia'].forEach(i => $(i).classList.remove('invalido'));
+        const m = error.toLowerCase();
+        if (m.includes('medicamento')) $('medicamento').classList.add('invalido');
+        if (m.includes('sucursal')) $('sucursal').classList.add('invalido');
+        if (m.includes('tipo de movimiento')) $('tipo').classList.add('invalido');
+        if (m.includes('cantidad') || m.includes('stock insuficiente')) $('cantidad').classList.add('invalido');
+        if (m.includes('costo')) $('costo').classList.add('invalido');
+        if (m.includes('motivo')) $('notas').classList.add('invalido');
+        if (m.includes('referencia')) $('referencia').classList.add('invalido');
+    }
+
+    async function registrar() {
+        mensaje.textContent = ''; mensaje.className = ''; $('alertaFinal').classList.add('oculto');
+        const cuerpo = {
+            usuarioId: usuario.id, medicamentoId: $('medicamento').value, sucursalId: $('sucursal').value, tipo: $('tipo').value,
+            cantidad: $('cantidad').value, costoUnitario: $('costo').value, referencia: $('referencia').value, notas: $('notas').value };
+        $('btnRegistrar').disabled = true;
+        try {
+            const r = await fetch('/api/bitacora-inventario', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+            const d = await r.json();
+            if (!r.ok) {
+                mensaje.textContent = d.error; mensaje.className = 'error';
+                resaltar(d.error);
+                $('btnRegistrar').disabled = false;
+                return;
+            }
+            mensaje.textContent = d.mensaje; mensaje.className = 'exito';
+            if (d.alerta) { $('alertaFinal').textContent = d.alerta; $('alertaFinal').classList.remove('oculto'); }
+            setTimeout(() => { window.location.href = '/bitacora-inventario.html'; }, d.alerta ? 4500 : 2200);
+        } catch (e) {
+            mensaje.textContent = 'No se pudo conectar con el servidor.'; mensaje.className = 'error';
+            $('btnRegistrar').disabled = false;
+        }
+    }
+
+    iniciar();
+</script>
+</body>
+</html>

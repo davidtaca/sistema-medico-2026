@@ -182,6 +182,7 @@
                 esquema.columnas.map(c => `<td>${celda(c.campo, f[c.campo], f)}</td>`).join('') +
                 `<td><span class="badge ${f.activo ? 'si' : 'no'}">${f.activo ? 'Activo' : 'Inactivo'}</span></td>
                  <td><div class="acciones"><button class="chico" onclick="abrirForm(${f.id})">Editar</button>
+                 ${clave === 'inventario' ? `<button class="chico gris" onclick="window.location.href='/bitacora-inventario.html?medicamentoId=${f.medicamentoId}&sucursalId=${f.sucursalId}'">Bitácora</button>` : ''}
                  <button class="chico rojo" ${f.activo ? '' : 'disabled'} onclick="pedirEliminar(${f.id}, this)" data-nombre="${esc(f.nombre)}">Eliminar</button></div></td></tr>`).join('');
         document.getElementById('infoPagina').textContent = totalPaginas === 0 ? 'Sin resultados' : `Página ${pagina + 1} de ${totalPaginas} (${datos.totalElementos} registros)`;
         document.getElementById('btnAnterior').disabled = pagina <= 0;

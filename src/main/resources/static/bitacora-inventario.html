@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Bitácora de Inventario</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 24px; color: #2d3748; }
+        .pagina { max-width: 1280px; margin: 0 auto; }
+        .tarjeta { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 16px; }
+        h2 { margin: 0 0 12px; color: #2b6cb0; text-align: center; }
+        h3 { margin: 0 0 10px; color: #2b6cb0; font-size: 16px; }
+        .filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+        .filtros label { font-size: 12px; color: #4a5568; display: block; }
+        .filtros input, .filtros select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; margin-top: 3px; }
+        .barra { display: flex; gap: 8px; margin-top: 12px; justify-content: space-between; flex-wrap: wrap; }
+        button { padding: 8px 14px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover:not(:disabled) { background: #2c5282; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        button.verde { background: #2f855a; } button.verde:hover { background: #276749; }
+        button.gris { background: #718096; } button.gris:hover:not(:disabled) { background: #4a5568; }
+        button.chico { padding: 4px 9px; font-size: 12px; }
+        .tabla-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        th { background: #ebf4ff; color: #2b6cb0; text-align: left; padding: 8px 6px; white-space: nowrap; }
+        td { padding: 8px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        tr:hover td { background: #f7fbff; }
+        tr.inactivo td { color: #a0aec0; background: #f7fafc; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: bold; color: white; white-space: nowrap; }
+        .badge.entrada { background: #2f855a; } .badge.salida { background: #c53030; } .badge.si { background: #2f855a; } .badge.no { background: #718096; }
+        .acciones { display: flex; gap: 6px; white-space: nowrap; }
+        .paginacion { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 14px; font-size: 13px; color: #4a5568; }
+        #mensaje { text-align: center; font-size: 14px; margin: 10px 0; min-height: 18px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; } .vacio { color: #718096; }
+        .resumen-barra { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 10px; }
+        .resumen-barra label { font-size: 12px; color: #4a5568; display: block; }
+        .resumen-barra input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; margin-top: 3px; }
+        .totales { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+        .total { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #718096; }
+        .total strong { display: block; font-size: 18px; color: #2d3748; }
+        a.salir { display: block; text-align: center; margin-top: 18px; color: #718096; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="pagina">
+    <h2>Bitácora de Movimientos de Inventario</h2>
+
+    <div class="tarjeta">
+        <div class="filtros">
+            <div><label for="fTipo">Tipo de movimiento</label><select id="fTipo"><option value="">Todos</option></select></div>
+            <div><label for="fMed">Medicamento</label><select id="fMed"><option value="">Todos</option></select></div>
+            <div><label for="fSuc">Sucursal</label><select id="fSuc"><option value="">Todas</option></select></div>
+            <div><label for="fRef">Número de referencia</label><input type="text" id="fRef" maxlength="50"></div>
+            <div><label for="fUsuario">Usuario</label><input type="text" id="fUsuario" maxlength="100"></div>
+            <div><label for="fDesde">Desde</label><input type="date" id="fDesde"></div>
+            <div><label for="fHasta">Hasta</label><input type="date" id="fHasta"></div>
+        </div>
+        <div class="barra">
+            <div style="display:flex;gap:8px;">
+                <button onclick="buscar()">Buscar</button>
+                <button class="gris" onclick="limpiar()">Limpiar</button>
+            </div>
+            <button class="verde" onclick="window.location.href='/bitacora-inventario-nuevo.html'">Nuevo Movimiento</button>
+        </div>
+    </div>
+
+    <div id="mensaje"></div>
+
+    <div class="tarjeta">
+        <div class="tabla-scroll">
+            <table>
+                <thead><tr><th>Tipo</th><th>Medicamento</th><th>Sucursal</th><th>Cantidad</th><th>Stock anterior</th><th>Stock nuevo</th>
+                    <th>Costo</th><th>Referencia</th><th>Usuario</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="cuerpo"></tbody>
+            </table>
+        </div>
+        <div class="paginacion">
+            <button class="gris" id="btnAnterior" onclick="cambiarPagina(-1)">‹ Anterior</button>
+            <span id="infoPagina"></span>
+            <button class="gris" id="btnSiguiente" onclick="cambiarPagina(1)">Siguiente ›</button>
+        </div>
+    </div>
+
+    <!-- Resumen mensual de movimientos -->
+    <div class="tarjeta">
+        <h3>Resumen mensual</h3>
+        <div class="resumen-barra">
+            <div><label for="mes">Mes</label><input type="month" id="mes" onchange="cargarResumen()"></div>
+            <span style="font-size:12px;color:#718096;">Usa los filtros de medicamento y sucursal de arriba. Solo cuenta movimientos activos.</span>
+        </div>
+        <div class="totales" id="totales"></div>
+        <div class="tabla-scroll"><table><thead><tr><th>Tipo</th><th>Movimientos</th><th>Unidades</th></tr></thead><tbody id="cuerpoResumen"></tbody></table></div>
+    </div>
+
+    <a class="salir" href="/menu.html">← Volver al menú</a>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'FARMACEUTICO' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de farmacia.');
+        window.location.href = '/index.html';
+    }
+
+    const TAMANO = 10;
+    let pagina = 0, totalPaginas = 0;
+    const mensaje = document.getElementById('mensaje');
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+    function aviso(texto, clase) { mensaje.textContent = texto; mensaje.className = clase || ''; }
+    const dinero = n => n == null ? '—' : 'Q' + Number(n).toFixed(2);
+
+    async function iniciar() {
+        const op = await fetch('/api/bitacora-inventario/opciones').then(r => r.json());
+        op.tipos.forEach(t => document.getElementById('fTipo').add(new Option(t.etiqueta, t.valor)));
+        document.getElementById('fTipo').add(new Option('Despacho', 'DESPACHO'));
+        op.medicamentos.forEach(m => document.getElementById('fMed').add(new Option(m.etiqueta, m.id)));
+        op.sucursales.forEach(s => document.getElementById('fSuc').add(new Option(s.etiqueta, s.id)));
+        const p = new URLSearchParams(window.location.search);
+        if (p.get('medicamentoId')) document.getElementById('fMed').value = p.get('medicamentoId');
+        if (p.get('sucursalId')) document.getElementById('fSuc').value = p.get('sucursalId');
+        const hoy = new Date();
+        document.getElementById('mes').value = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+        await cargar();
+        await cargarResumen();
+    }
+
+    // Paso 2: listado con filtros por columna
+    async function cargar() {
+        const params = new URLSearchParams({
+            tipo: document.getElementById('fTipo').value, medicamentoId: document.getElementById('fMed').value, sucursalId: document.getElementById('fSuc').value,
+            referencia: document.getElementById('fRef').value.trim(), usuario: document.getElementById('fUsuario').value.trim(),
+            desde: document.getElementById('fDesde').value, hasta: document.getElementById('fHasta').value, pagina, tamano: TAMANO });
+        const r = await fetch('/api/bitacora-inventario?' + params);
+        const datos = await r.json();
+        if (!r.ok) { aviso(datos.error, 'error'); return; }
+        totalPaginas = datos.totalPaginas;
+        document.getElementById('cuerpo').innerHTML = datos.contenido.length === 0
+            ? '<tr><td colspan="12" class="vacio" style="text-align:center;padding:24px;">No se encontraron resultados.</td></tr>'
+            : datos.contenido.map(m => `<tr class="${m.activo ? '' : 'inactivo'}">
+                <td><span class="badge ${m.salida ? 'salida' : 'entrada'}">${esc(m.tipoEtiqueta)}</span></td>
+                <td>${esc(m.medicamento)}</td><td>${esc(m.sucursal)}</td>
+                <td>${m.salida ? '−' : '+'}${m.cantidad}</td><td>${m.stockAnterior}</td><td>${m.stockNuevo}</td>
+                <td>${dinero(m.costoUnitario)}</td><td>${esc(m.referencia || '—')}</td><td>${esc(m.usuario)}</td>
+                <td>${new Date(m.fecha).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                <td><span class="badge ${m.activo ? 'si' : 'no'}">${m.activo ? 'Activo' : 'Inactivo'}</span></td>
+                <td><div class="acciones"><button class="chico" onclick="window.location.href='/bitacora-inventario-detalle.html?id=${m.id}'">Ver</button>
+                    <button class="chico gris" onclick="cambiarEstado(${m.id}, ${!m.activo})">${m.activo ? 'Desactivar' : 'Activar'}</button></div></td></tr>`).join('');
+        document.getElementById('infoPagina').textContent = totalPaginas === 0 ? 'Sin resultados' : `Página ${pagina + 1} de ${totalPaginas} (${datos.totalElementos} registros)`;
+        document.getElementById('btnAnterior').disabled = pagina <= 0;
+        document.getElementById('btnSiguiente').disabled = pagina + 1 >= totalPaginas;
+    }
+
+    function buscar() { pagina = 0; aviso(''); cargar(); cargarResumen(); }
+    function limpiar() {
+        ['fTipo', 'fMed', 'fSuc', 'fRef', 'fUsuario', 'fDesde', 'fHasta'].forEach(i => document.getElementById(i).value = '');
+        buscar();
+    }
+    function cambiarPagina(d) { pagina += d; cargar(); }
+    ['fRef', 'fUsuario'].forEach(i => document.getElementById(i).addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); }));
+
+    // Activar / desactivar el registro (no modifica el stock)
+    async function cambiarEstado(id, activo) {
+        const r = await fetch(`/api/bitacora-inventario/${id}/estado`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuarioId: usuario.id, activo }) });
+        const d = await r.json();
+        aviso(r.ok ? `El movimiento fue ${activo ? 'activado' : 'desactivado'}. El stock no se modifica.` : d.error, r.ok ? 'exito' : 'error');
+        await cargar();
+        await cargarResumen();
+    }
+
+    // Resumen mensual
+    async function cargarResumen() {
+        const mes = document.getElementById('mes').value;
+        if (!mes) return;
+        const params = new URLSearchParams({ mes, medicamentoId: document.getElementById('fMed').value, sucursalId: document.getElementById('fSuc').value });
+        const r = await fetch('/api/bitacora-inventario/resumen?' + params);
+        const d = await r.json();
+        if (!r.ok) { aviso(d.error, 'error'); return; }
+        document.getElementById('totales').innerHTML =
+            `<div class="total">Movimientos<strong>${d.totalMovimientos}</strong></div>
+             <div class="total">Entradas (unidades)<strong style="color:#2f855a">+${d.entradas}</strong></div>
+             <div class="total">Salidas (unidades)<strong style="color:#c53030">−${d.salidas}</strong></div>
+             <div class="total">Neto<strong>${d.neto > 0 ? '+' : ''}${d.neto}</strong></div>`;
+        document.getElementById('cuerpoResumen').innerHTML = d.porTipo.map(t =>
+            `<tr><td><span class="badge ${t.salida ? 'salida' : 'entrada'}">${esc(t.etiqueta)}</span></td><td>${t.movimientos}</td><td>${t.unidades}</td></tr>`).join('');
+    }
+
+    iniciar();
+</script>
+</body>
+</html>

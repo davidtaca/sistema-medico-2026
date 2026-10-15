@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalle del Movimiento</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 30px 16px; margin: 0; color: #2d3748; }
+        .caja { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 520px; max-width: 100%; }
+        h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        .fila { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        .fila span { color: #718096; }
+        .fila strong { text-align: right; word-break: break-word; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; color: white; }
+        .badge.entrada, .badge.si { background: #2f855a; } .badge.salida { background: #c53030; } .badge.no { background: #718096; }
+        .notas { margin-top: 12px; background: #f7fafc; border-radius: 6px; padding: 10px; font-size: 13px; white-space: pre-wrap; }
+        button { display: block; margin: 22px auto 0; padding: 10px 28px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; color: white; background: #718096; }
+        button:hover { background: #4a5568; }
+        #error { text-align: center; color: #c53030; }
+    </style>
+</head>
+<body>
+<div class="caja">
+    <h2>Detalle del Movimiento</h2>
+    <div id="detalle"></div>
+    <div id="error"></div>
+    <button onclick="window.location.href='/bitacora-inventario.html'">Volver</button>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || (usuario.rol !== 'FARMACEUTICO' && usuario.rol !== 'ADMINISTRADOR')) {
+        alert('Debe iniciar sesión como personal de farmacia.');
+        window.location.href = '/index.html';
+    }
+    function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+
+    async function cargar() {
+        const id = new URLSearchParams(window.location.search).get('id');
+        const r = await fetch(`/api/bitacora-inventario/${encodeURIComponent(id)}`);
+        const m = await r.json();
+        if (!r.ok) { document.getElementById('error').textContent = m.error; return; }
+        const fila = (e, v) => `<div class="fila"><span>${e}</span><strong>${v}</strong></div>`;
+        document.getElementById('detalle').innerHTML =
+            fila('Tipo', `<span class="badge ${m.salida ? 'salida' : 'entrada'}">${esc(m.tipoEtiqueta)}</span> (${m.salida ? 'salida' : 'entrada'})`) +
+            fila('Medicamento', esc(m.medicamento)) + fila('Sucursal', esc(m.sucursal)) +
+            fila('Cantidad', `${m.salida ? '−' : '+'}${m.cantidad}`) + fila('Stock anterior', m.stockAnterior) + fila('Stock nuevo', m.stockNuevo) +
+            fila('Costo unitario', m.costoUnitario == null ? '—' : 'Q' + Number(m.costoUnitario).toFixed(2)) +
+            fila(esc(m.tipoReferencia || 'Referencia'), esc(m.referencia || '—')) +
+            fila('Registrado por', esc(m.usuario)) + fila('Fecha', new Date(m.fecha).toLocaleString('es-GT')) +
+            fila('Estado', `<span class="badge ${m.activo ? 'si' : 'no'}">${m.activo ? 'Activo' : 'Inactivo'}</span>`) +
+            (m.notas ? `<div class="notas"><strong>Notas / motivo</strong><br>${esc(m.notas)}</div>` : '');
+    }
+    cargar();
+</script>
+</body>
+</html>
