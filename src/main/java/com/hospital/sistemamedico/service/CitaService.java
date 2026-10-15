@@ -32,6 +32,12 @@ public class CitaService {
     @Autowired
     private com.hospital.sistemamedico.repository.SedeEspecialidadRepository sedeEspecialidadRepository;
 
+    @Autowired
+    private com.hospital.sistemamedico.repository.EventoAgendaRepository eventoAgendaRepository;
+
+    @Autowired
+    private AgendaService agendaService;
+
     /** Estados de una cita que ya no ocupan el horario del médico. */
     private static final List<EstadoCita> ESTADOS_QUE_LIBERAN_HORARIO = List.of(EstadoCita.CANCELADA, EstadoCita.NO_ASISTIO);
 
@@ -138,6 +144,14 @@ public class CitaService {
         }
 
         // Evita que un médico tenga dos citas distintas exactamente en el mismo horario
+        // CU-14: un evento de la agenda del médico (capacitación, descanso, etc.) lo deja no disponible
+        if (agendaService.medicoOcupadoPorEvento(medicoId, fechaHora)) {
+            if (citaOrigenId != null) {
+                throw new IllegalArgumentException("El horario seleccionado ya no está disponible. Por favor, elija otro horario.");
+            }
+            throw new IllegalArgumentException("El médico no está disponible en ese horario.");
+        }
+
         if (citaRepository.existsByMedicoIdAndFechaHoraAndEstadoNotIn(medicoId, fechaHora, ESTADOS_QUE_LIBERAN_HORARIO)) {
             if (citaOrigenId != null) {
                 // CU-12 FA01: el horario se ocupó entre la selección y la confirmación
@@ -426,13 +440,18 @@ public class CitaService {
                 .map(Cita::getFechaHora)
                 .collect(java.util.stream.Collectors.toSet());
 
+        // CU-14: los eventos de la agenda del médico también ocupan horarios
+        List<EventoAgenda> eventos = eventoAgendaRepository.findByMedicoIdAndInicioLessThanAndFinGreaterThanOrderByInicio(
+                medicoId, dia.plusDays(1).atStartOfDay(), dia.atStartOfDay());
+
         List<java.util.Map<String, Object>> horarios = new java.util.ArrayList<>();
         for (java.time.LocalTime h = PRIMERA_HORA; !h.isAfter(ULTIMA_HORA); h = h.plusMinutes(30)) {
             java.time.LocalDateTime momento = dia.atTime(h);
+            boolean enEvento = eventos.stream().anyMatch(e -> !momento.isBefore(e.getInicio()) && momento.isBefore(e.getFin()));
             java.util.Map<String, Object> slot = new java.util.LinkedHashMap<>();
             slot.put("hora", h.toString());
             slot.put("fechaHora", momento.toString());
-            slot.put("disponible", momento.isAfter(java.time.LocalDateTime.now()) && !ocupados.contains(momento));
+            slot.put("disponible", momento.isAfter(java.time.LocalDateTime.now()) && !ocupados.contains(momento) && !enEvento);
             horarios.add(slot);
         }
         return horarios;

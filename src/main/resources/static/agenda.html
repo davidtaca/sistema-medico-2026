@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Agenda Médica</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; color: #2d3748; }
+        .pagina { max-width: 1250px; margin: 0 auto; }
+        h2 { color: #2b6cb0; margin: 0 0 12px; text-align: center; }
+        .cabecera { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; background: white; padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .grupo { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .periodo { font-size: 17px; font-weight: bold; min-width: 210px; text-align: center; text-transform: capitalize; }
+        button { padding: 8px 13px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        button:hover:not(:disabled) { background: #2c5282; }
+        button.claro { background: #e2e8f0; color: #2d3748; } button.claro:hover { background: #cbd5e0; }
+        button.activo { background: #2b6cb0; color: white; }
+        button.violeta { background: #8b5cf6; } button.violeta:hover { background: #7c3aed; }
+        button.verde { background: #2f855a; } button.verde:hover { background: #276749; }
+        button.rojo { background: #c53030; } button.rojo:hover { background: #9b2c2c; }
+        button.gris { background: #718096; } button.gris:hover { background: #4a5568; }
+        .leyenda { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #4a5568; margin: 8px 4px; }
+        .leyenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; background: var(--c); vertical-align: middle; }
+        .cuerpo { display: flex; gap: 14px; align-items: flex-start; }
+        .calendario { flex: 1; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 12px; min-width: 0; overflow-x: auto; }
+        .panel { width: 330px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 14px; flex-shrink: 0; }
+        .oculto { display: none !important; }
+        #mensaje { text-align: center; font-size: 14px; margin: 10px 0; min-height: 18px; }
+        .error { color: #c53030; } .exito { color: #2f855a; font-weight: bold; } .aviso { color: #b7791f; }
+
+        /* Vista mensual */
+        .mes { display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); border-top: 1px solid #e2e8f0; border-left: 1px solid #e2e8f0; }
+        .mes .dia-nombre { background: #ebf4ff; color: #2b6cb0; font-size: 12px; font-weight: bold; text-align: center; padding: 6px 0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+        .celda { min-height: 104px; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 3px; cursor: pointer; }
+        .celda:hover { background: #f7fbff; }
+        .celda.otro-mes { background: #f7fafc; color: #a0aec0; }
+        .celda.hoy { background: #fffbea; }
+        .celda.elegida { outline: 2px solid #2b6cb0; outline-offset: -2px; }
+        .celda .num { font-size: 12px; font-weight: bold; padding: 1px 4px; display: inline-block; }
+        .celda.hoy .num { background: #2b6cb0; color: white; border-radius: 10px; }
+        .chip { display: block; font-size: 11px; color: white; padding: 2px 5px; border-radius: 3px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; background: var(--c); }
+        .mas { font-size: 11px; color: #2b6cb0; margin-top: 2px; cursor: pointer; }
+
+        /* Vistas semana y día */
+        .grilla { display: grid; border-top: 1px solid #e2e8f0; min-width: 520px; }
+        .grilla .enc { background: #ebf4ff; color: #2b6cb0; font-size: 12px; font-weight: bold; text-align: center; padding: 6px 2px; border-left: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; cursor: pointer; }
+        .grilla .enc.hoy { background: #2b6cb0; color: white; }
+        .grilla .enc.elegida { box-shadow: inset 0 -3px 0 #8b5cf6; }
+        .todo-dia { border-left: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 2px; min-height: 26px; }
+        .etq-todo { font-size: 10px; color: #718096; padding: 4px; border-bottom: 1px solid #e2e8f0; }
+        .horas { position: relative; }
+        .hora-etq { position: absolute; left: 0; right: 0; font-size: 10px; color: #718096; text-align: right; padding-right: 5px; transform: translateY(-6px); }
+        .col-dia { position: relative; border-left: 1px solid #e2e8f0; }
+        .linea { position: absolute; left: 0; right: 0; border-top: 1px solid #edf2f7; }
+        .bloque { position: absolute; font-size: 11px; color: white; border-radius: 4px; padding: 2px 4px; overflow: hidden; cursor: pointer; border: 1px solid rgba(255,255,255,0.6); background: var(--c); line-height: 1.2; }
+        .ahora { position: absolute; left: 0; right: 0; border-top: 2px solid #e53e3e; z-index: 2; }
+
+        /* Detalle (popover) */
+        .popover { position: fixed; z-index: 30; background: white; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); padding: 14px; width: 300px; font-size: 13px; }
+        .popover h4 { margin: 0 0 8px; color: #2d3748; font-size: 15px; }
+        .popover p { margin: 4px 0; }
+        .popover .acc { display: flex; gap: 8px; margin-top: 10px; }
+        .etq { display: inline-block; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+
+        /* Modales */
+        .fondo { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; }
+        .modal { background: white; border-radius: 10px; padding: 22px; width: 440px; max-width: 100%; max-height: 92vh; overflow-y: auto; }
+        .modal h3 { margin: 0 0 6px; color: #2b6cb0; }
+        .modal label { display: block; font-size: 13px; margin-top: 12px; }
+        .modal .req { color: #c53030; }
+        .modal input[type=text], .modal input[type=date], .modal input[type=datetime-local], .modal select, .modal textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; font-size: 13px; }
+        .modal textarea { min-height: 64px; resize: vertical; }
+        .modal .invalido { border-color: #c53030 !important; background: #fff5f5; }
+        .modal .check { display: flex; align-items: center; gap: 8px; }
+        .modal .check input { width: auto; margin: 0; }
+        .modal .acc { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+        .modal .errorForm { color: #c53030; font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+        /* Panel de tareas */
+        .panel h3 { margin: 0 0 4px; color: #2b6cb0; font-size: 16px; }
+        .panel .sub { color: #718096; font-size: 12px; margin-bottom: 10px; }
+        .filtros { display: flex; gap: 4px; margin-bottom: 10px; }
+        .filtros button { flex: 1; padding: 6px 4px; font-size: 12px; }
+        .tarea { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; margin-top: 8px; display: flex; gap: 8px; align-items: flex-start; }
+        .tarea.hecha { background: #f7fafc; }
+        .tarea.hecha .t-titulo { text-decoration: line-through; color: #a0aec0; }
+        .tarea input[type=checkbox] { margin-top: 3px; }
+        .t-info { flex: 1; font-size: 12px; min-width: 0; }
+        .t-titulo { font-weight: bold; font-size: 13px; word-break: break-word; }
+        .prio { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+        .vacio { color: #718096; font-size: 13px; text-align: center; margin-top: 14px; }
+        a.salir { display: block; text-align: center; margin-top: 18px; color: #718096; font-size: 13px; }
+        @media (max-width: 900px) { .cuerpo { flex-direction: column; } .panel { width: 100%; } }
+    </style>
+</head>
+<body>
+<div class="pagina">
+    <h2>Agenda Médica</h2>
+
+    <div class="cabecera">
+        <div class="grupo">
+            <button class="claro" onclick="mover(-1)" title="Anterior">‹</button>
+            <button class="claro" onclick="irAHoy()">Hoy</button>
+            <button class="claro" onclick="mover(1)" title="Siguiente">›</button>
+        </div>
+        <div class="periodo" id="periodo"></div>
+        <div class="grupo">
+            <button class="claro" id="vMonth" onclick="cambiarVista('month')">Mes</button>
+            <button class="claro" id="vWeek" onclick="cambiarVista('week')">Semana</button>
+            <button class="claro" id="vDay" onclick="cambiarVista('day')">Día</button>
+        </div>
+        <div class="grupo">
+            <button class="violeta" onclick="abrirFormEvento()">Nuevo Evento</button>
+            <button class="claro" id="btnPanel" onclick="alternarPanel()">Tareas</button>
+        </div>
+    </div>
+
+    <div class="leyenda" id="leyenda"></div>
+    <div id="mensaje"></div>
+
+    <div class="cuerpo">
+        <div class="calendario" id="calendario"></div>
+
+        <!-- Panel lateral de tareas (TaskPanel) -->
+        <div class="panel oculto" id="panelTareas">
+            <h3>Tareas</h3>
+            <div class="sub" id="subTareas"></div>
+            <div class="filtros">
+                <button class="claro activo" id="fPendientes" onclick="filtrarTareas('PENDIENTES')">Pendientes</button>
+                <button class="claro" id="fCompletadas" onclick="filtrarTareas('COMPLETADAS')">Completadas</button>
+                <button class="claro" id="fTodas" onclick="filtrarTareas('TODAS')">Todas</button>
+            </div>
+            <button class="verde" style="width:100%" onclick="abrirFormTarea()">Nueva Tarea</button>
+            <div id="listaTareas"></div>
+        </div>
+    </div>
+
+    <a class="salir" href="/menu.html">← Volver al menú</a>
+</div>
+
+<div id="popover" class="popover oculto"></div>
+
+<!-- Formulario de evento -->
+<div class="fondo oculto" id="fondoEvento">
+    <div class="modal">
+        <h3 id="tituloFormEvento">Nuevo Evento</h3>
+        <label>Título <span class="req">*</span><input type="text" id="eTitulo" maxlength="200"></label>
+        <label>Descripción<textarea id="eDescripcion" maxlength="500"></textarea></label>
+        <label class="check"><input type="checkbox" id="eTodoDia" onchange="alternarTodoDia()"> Todo el día</label>
+        <label>Fecha de inicio <span class="req">*</span><input type="datetime-local" id="eInicio"></label>
+        <label>Fecha de fin <span class="req">*</span><input type="datetime-local" id="eFin"></label>
+        <label>Tipo de evento <span class="req">*</span>
+            <select id="eTipo">
+                <option value="">Seleccione...</option>
+                <option value="REUNION">Reunión</option>
+                <option value="DESCANSO">Descanso</option>
+                <option value="CAPACITACION">Capacitación</option>
+                <option value="PERSONAL">Personal</option>
+                <option value="OTRO">Otro</option>
+            </select></label>
+        <div class="errorForm" id="errorEvento"></div>
+        <div class="acc">
+            <button class="gris" onclick="cerrarFormEvento()">Cancelar</button>
+            <button class="violeta" onclick="guardarEvento()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Formulario de tarea -->
+<div class="fondo oculto" id="fondoTarea">
+    <div class="modal">
+        <h3>Nueva Tarea</h3>
+        <label>Título <span class="req">*</span><input type="text" id="tTitulo" maxlength="200"></label>
+        <label>Descripción<textarea id="tDescripcion" maxlength="1000"></textarea></label>
+        <label>Prioridad <span class="req">*</span>
+            <select id="tPrioridad">
+                <option value="">Seleccione...</option>
+                <option value="BAJA">Baja</option>
+                <option value="NORMAL">Normal</option>
+                <option value="ALTA">Alta</option>
+            </select></label>
+        <label>Fecha límite <span class="req">*</span><input type="date" id="tFecha"></label>
+        <div class="errorForm" id="errorTarea"></div>
+        <div class="acc">
+            <button class="gris" onclick="document.getElementById('fondoTarea').classList.add('oculto')">Cancelar</button>
+            <button class="verde" onclick="guardarTarea()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmación de eliminación -->
+<div class="fondo oculto" id="fondoConfirmar">
+    <div class="modal" style="width:360px;text-align:center;">
+        <p id="textoConfirmar" style="font-size:15px;margin-top:0;"></p>
+        <div class="acc" style="justify-content:center;">
+            <button class="gris" onclick="responderConfirmar(false)">Cancelar</button>
+            <button class="rojo" onclick="responderConfirmar(true)">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const usuario = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!usuario || usuario.rol !== 'MEDICO') {
+        alert('Debe iniciar sesión como médico.');
+        window.location.href = '/index.html';
+    }
+
+    const COLOR_EVENTO = '#8b5cf6';
+    const COLORES_CITA = {
+        CONFIRMADA: ['#2b6cb0', 'Confirmada'], PACIENTE_PRESENTE: ['#0d9488', 'Paciente presente'], SIGNOS_VITALES: ['#0891b2', 'Signos vitales'],
+        EN_CONSULTA: ['#ea580c', 'En consulta'], EVALUADO_PENDIENTE_CIERRE: ['#ca8a04', 'Evaluado'], ATENCION_FINALIZADA: ['#16a34a', 'Atención finalizada'],
+        COMPLETADA: ['#16a34a', 'Completada']
+    };
+    const PRIO = { BAJA: '#38a169', NORMAL: '#d69e2e', ALTA: '#e53e3e' };
+    const HORA_INI = 6, HORA_FIN = 22, PX_HORA = 44;
+    const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    const DIAS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+
+    let vista = 'month';
+    let cursor = new Date();       // día que define el periodo mostrado
+    let elegido = new Date();      // día seleccionado (para el panel de tareas)
+    let datos = { citas: [], eventos: [] };
+    let filtroTareas = 'PENDIENTES';
+    let eventoEditando = null;
+    let confirmarCallback = null;
+
+    const mensaje = document.getElementById('mensaje');
+
+    // ---------------------------------------------------------------- utilidades
+    const p2 = n => String(n).padStart(2, '0');
+    const iso = d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    const isoHora = d => `${iso(d)}T${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+    const aFecha = s => new Date(s);
+    const inicioDia = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const sumarDias = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const mismoDia = (a, b) => iso(a) === iso(b);
+    const lunes = d => { const x = inicioDia(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+    const hhmm = d => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+    function aviso(texto, clase) { mensaje.textContent = texto; mensaje.className = clase || ''; }
+    const fmtLargo = d => d.toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+
+    // ---------------------------------------------------------------- rango y carga
+    function rango() {
+        if (vista === 'month') {
+            const ini = lunes(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+            return [ini, sumarDias(ini, 42)];
+        }
+        if (vista === 'week') { const ini = lunes(cursor); return [ini, sumarDias(ini, 7)]; }
+        const ini = inicioDia(cursor);
+        return [ini, sumarDias(ini, 1)];
+    }
+
+    async function cargar() {
+        const [desde, hasta] = rango();
+        const r = await fetch(`/api/agenda/${usuario.id}?desde=${isoHora(desde)}&hasta=${isoHora(hasta)}`);
+        const d = await r.json();
+        if (!r.ok) { aviso(d.error, 'error'); return; }
+        datos = d;
+        pintar();
+    }
+
+    function titulosPeriodo() {
+        if (vista === 'month') return `${MESES[cursor.getMonth()]} de ${cursor.getFullYear()}`;
+        if (vista === 'day') return `${DIAS[(cursor.getDay() + 6) % 7]} ${cursor.getDate()} de ${MESES[cursor.getMonth()]} de ${cursor.getFullYear()}`;
+        const ini = lunes(cursor), fin = sumarDias(ini, 6);
+        return `${ini.getDate()} ${MESES[ini.getMonth()].slice(0, 3)} – ${fin.getDate()} ${MESES[fin.getMonth()].slice(0, 3)} ${fin.getFullYear()}`;
+    }
+
+    // ---------------------------------------------------------------- elementos del calendario
+    // Cada elemento: { tipo: 'evento'|'cita', inicio: Date, fin: Date, titulo, color, todoDia, ref }
+    function elementos() {
+        const lista = [];
+        datos.eventos.forEach(e => lista.push({ tipo: 'evento', inicio: aFecha(e.inicio), fin: aFecha(e.fin), titulo: e.titulo, color: COLOR_EVENTO, todoDia: e.todoElDia, ref: e }));
+        datos.citas.forEach(c => {
+            const ini = aFecha(c.fechaHora);
+            const color = (COLORES_CITA[c.estado] || ['#4a5568'])[0];
+            lista.push({ tipo: 'cita', inicio: ini, fin: new Date(ini.getTime() + 30 * 60000), titulo: c.paciente, color, todoDia: false, ref: c });
+        });
+        return lista.sort((a, b) => a.inicio - b.inicio);
+    }
+
+    // Un elemento aparece en un día si se cruza con él
+    function enDia(el, dia) {
+        const ini = inicioDia(dia), fin = sumarDias(ini, 1);
+        return el.inicio < fin && el.fin > ini;
+    }
+
+    // ---------------------------------------------------------------- pintar
+    function pintar() {
+        document.getElementById('periodo').textContent = titulosPeriodo();
+        ['month', 'week', 'day'].forEach(v => document.getElementById('v' + v[0].toUpperCase() + v.slice(1)).classList.toggle('activo', v === vista));
+        if (vista === 'month') pintarMes(); else pintarGrilla();
+        pintarTareas();
+    }
+
+    function pintarMes() {
+        const els = elementos();
+        const [ini] = rango();
+        let html = '<div class="mes">' + DIAS.map(d => `<div class="dia-nombre">${d}</div>`).join('');
+        const hoy = new Date();
+        for (let i = 0; i < 42; i++) {
+            const dia = sumarDias(ini, i);
+            const items = els.filter(e => enDia(e, dia));
+            const clases = ['celda'];
+            if (dia.getMonth() !== cursor.getMonth()) clases.push('otro-mes');
+            if (mismoDia(dia, hoy)) clases.push('hoy');
+            if (mismoDia(dia, elegido)) clases.push('elegida');
+            html += `<div class="${clases.join(' ')}" data-dia="${iso(dia)}" onclick="elegirDia('${iso(dia)}')">
+                <span class="num" ondblclick="event.stopPropagation(); irADia('${iso(dia)}')">${dia.getDate()}</span>`;
+            items.slice(0, 3).forEach(e => {
+                const hora = e.todoDia ? '' : hhmm(e.inicio) + ' ';
+                html += `<span class="chip" style="--c:${e.color}" onclick="event.stopPropagation(); detalle(event, '${e.tipo}', ${e.ref.id})" title="${esc(e.titulo)}">${hora}${esc(e.titulo)}</span>`;
+            });
+            if (items.length > 3) html += `<div class="mas" onclick="event.stopPropagation(); irADia('${iso(dia)}')">+${items.length - 3} más</div>`;
+            html += '</div>';
+        }
+        document.getElementById('calendario').innerHTML = html + '</div>';
+    }
+
+    function pintarGrilla() {
+        const dias = vista === 'week' ? Array.from({ length: 7 }, (_, i) => sumarDias(lunes(cursor), i)) : [inicioDia(cursor)];
+        const els = elementos();
+        const hoy = new Date();
+        const alto = (HORA_FIN - HORA_INI) * PX_HORA;
+        let html = `<div class="grilla" style="grid-template-columns: 46px repeat(${dias.length}, 1fr);">`;
+        html += '<div class="enc" style="cursor:default"></div>';
+        dias.forEach(d => {
+            html += `<div class="enc ${mismoDia(d, hoy) ? 'hoy' : ''} ${mismoDia(d, elegido) ? 'elegida' : ''}" onclick="elegirDia('${iso(d)}')">${DIAS[(d.getDay() + 6) % 7]} ${d.getDate()}</div>`;
+        });
+        // fila de eventos de todo el día
+        html += '<div class="etq-todo">todo el día</div>';
+        dias.forEach(d => {
+            html += '<div class="todo-dia">' + els.filter(e => e.todoDia && enDia(e, d)).map(e =>
+                `<span class="chip" style="--c:${e.color}" onclick="detalle(event, 'evento', ${e.ref.id})">${esc(e.titulo)}</span>`).join('') + '</div>';
+        });
+        // cuadrícula horaria
+        html += `<div class="horas" style="height:${alto}px;">` +
+            Array.from({ length: HORA_FIN - HORA_INI }, (_, i) => `<div class="hora-etq" style="top:${i * PX_HORA}px">${p2(HORA_INI + i)}:00</div>`).join('') + '</div>';
+        dias.forEach(d => {
+            html += `<div class="col-dia" style="height:${alto}px;" data-dia="${iso(d)}">`;
+            for (let i = 0; i < HORA_FIN - HORA_INI; i++) html += `<div class="linea" style="top:${i * PX_HORA}px"></div>`;
+            if (mismoDia(d, hoy)) {
+                const y = ((hoy.getHours() + hoy.getMinutes() / 60) - HORA_INI) * PX_HORA;
+                if (y >= 0 && y <= alto) html += `<div class="ahora" style="top:${y}px"></div>`;
+            }
+            html += bloquesDelDia(els.filter(e => !e.todoDia && enDia(e, d)), d) + '</div>';
+        });
+        document.getElementById('calendario').innerHTML = html + '</div>';
+    }
+
+    // Reparte en carriles los elementos que se cruzan en el tiempo
+    function bloquesDelDia(items, dia) {
+        const ini0 = inicioDia(dia), fin0 = sumarDias(ini0, 1);
+        const pos = items.map(e => {
+            const ini = e.inicio < ini0 ? ini0 : e.inicio, fin = e.fin > fin0 ? fin0 : e.fin;
+            const top = Math.max(0, ((ini.getHours() + ini.getMinutes() / 60) - HORA_INI) * PX_HORA);
+            const finH = fin.getTime() === fin0.getTime() ? 24 : fin.getHours() + fin.getMinutes() / 60;
+            const bottom = Math.min((HORA_FIN - HORA_INI) * PX_HORA, (finH - HORA_INI) * PX_HORA);
+            return { e, top, alto: Math.max(18, bottom - top), carril: 0 };
+        }).filter(p => p.top < (HORA_FIN - HORA_INI) * PX_HORA && p.top + p.alto > 0);
+
+        // grupos de elementos que se solapan
+        const grupos = [];
+        pos.sort((a, b) => a.top - b.top).forEach(p => {
+            let g = grupos.find(g => g.fin > p.top);
+            if (!g) { g = { fin: 0, items: [] }; grupos.push(g); }
+            g.items.push(p); g.fin = Math.max(g.fin, p.top + p.alto);
+        });
+        let html = '';
+        grupos.forEach(g => {
+            const carriles = [];
+            g.items.forEach(p => {
+                let c = carriles.findIndex(fin => fin <= p.top);
+                if (c === -1) { c = carriles.length; carriles.push(0); }
+                carriles[c] = p.top + p.alto; p.carril = c;
+            });
+            g.items.forEach(p => {
+                const w = 100 / carriles.length;
+                const e = p.e;
+                html += `<div class="bloque" style="--c:${e.color}; top:${p.top}px; height:${p.alto}px; left:calc(${p.carril * w}% + 1px); width:calc(${w}% - 3px);"
+                    onclick="detalle(event, '${e.tipo}', ${e.ref.id})" title="${esc(e.titulo)}"><strong>${hhmm(e.inicio)}</strong> ${esc(e.titulo)}</div>`;
+            });
+        });
+        return html;
+    }
+
+    // ---------------------------------------------------------------- navegación
+    function cambiarVista(v) { vista = v; cargar(); }
+    function irAHoy() { cursor = new Date(); elegido = new Date(); cargar(); }
+    function mover(n) {
+        if (vista === 'month') cursor = new Date(cursor.getFullYear(), cursor.getMonth() + n, 1);
+        else cursor = sumarDias(cursor, n * (vista === 'week' ? 7 : 1));
+        if (vista === 'day') elegido = new Date(cursor);
+        cargar();
+    }
+    function elegirDia(s) { elegido = new Date(s + 'T00:00:00'); pintar(); }
+    function irADia(s) { cursor = new Date(s + 'T00:00:00'); elegido = new Date(cursor); vista = 'day'; cargar(); }
+
+    function crearLeyenda() {
+        document.getElementById('leyenda').innerHTML =
+            `<span style="--c:${COLOR_EVENTO}">Evento</span>` +
+            Object.values(COLORES_CITA).filter((v, i, a) => a.findIndex(x => x[0] === v[0]) === i).map(v => `<span style="--c:${v[0]}">${v[1]}</span>`).join('');
+    }
+
+    // ---------------------------------------------------------------- detalle (popover)
+    function detalle(ev, tipo, id) {
+        ev.stopPropagation();
+        const pop = document.getElementById('popover');
+        let html = '';
+        if (tipo === 'evento') {
+            const e = datos.eventos.find(x => x.id === id);
+            const fmt = e.todoElDia ? (s => aFecha(s).toLocaleDateString('es-GT')) : (s => fmtLargo(aFecha(s)));
+            html = `<h4>${esc(e.titulo)}</h4>
+                <p><span class="etq" style="background:${COLOR_EVENTO}">${esc(e.tipoEtiqueta)}</span>${e.todoElDia ? ' <span class="etq" style="background:#718096">Todo el día</span>' : ''}</p>
+                <p><strong>Descripción:</strong> ${esc(e.descripcion || '—')}</p>
+                <p><strong>Inicio:</strong> ${fmt(e.inicio)}</p><p><strong>Fin:</strong> ${fmt(e.fin)}</p>
+                <div class="acc"><button class="violeta" onclick="editarEvento(${e.id})">Editar</button><button class="rojo" onclick="pedirEliminarEvento(${e.id})">Eliminar</button></div>`;
+        } else {
+            const c = datos.citas.find(x => x.id === id);
+            const [color, nombre] = COLORES_CITA[c.estado] || ['#4a5568', c.estado];
+            html = `<h4>Cita #${c.id}</h4>
+                <p><strong>Paciente:</strong> ${esc(c.paciente)}${c.emergencia ? ' <span class="etq" style="background:#c53030">Emergencia</span>' : ''}</p>
+                <p><strong>Estado:</strong> <span class="etq" style="background:${color}">${esc(nombre)}</span></p>
+                <p><strong>Fecha:</strong> ${fmtLargo(aFecha(c.fechaHora))}</p>
+                <p><strong>Especialidad:</strong> ${esc(c.especialidad)} — ${esc(c.sucursal)}</p>
+                ${c.seguimiento ? `<p><strong>Seguimiento:</strong> ${esc(c.seguimiento)}</p>` : ''}
+                <p><strong>Motivo:</strong> ${esc(c.motivo || '—')}</p>`;
+        }
+        pop.innerHTML = html;
+        pop.classList.remove('oculto');
+        const x = Math.min(ev.clientX + 8, window.innerWidth - 320), y = Math.min(ev.clientY + 8, window.innerHeight - pop.offsetHeight - 10);
+        pop.style.left = Math.max(8, x) + 'px'; pop.style.top = Math.max(8, y) + 'px';
+    }
+    function cerrarPopover() { document.getElementById('popover').classList.add('oculto'); }
+    document.addEventListener('click', e => { if (!e.target.closest('#popover')) cerrarPopover(); });
+
+    // ---------------------------------------------------------------- eventos
+    const claseInvalido = (id, malo) => document.getElementById(id).classList.toggle('invalido', !!malo);
+
+    function abrirFormEvento(evento) {
+        eventoEditando = evento || null;
+        document.getElementById('tituloFormEvento').textContent = evento ? 'Editar Evento' : 'Nuevo Evento';
+        document.getElementById('errorEvento').textContent = '';
+        ['eTitulo', 'eInicio', 'eFin', 'eTipo'].forEach(id => claseInvalido(id, false));
+        const base = new Date(elegido); base.setHours(9, 0, 0, 0);
+        const fin = new Date(base); fin.setHours(10);
+        document.getElementById('eTitulo').value = evento ? evento.titulo : '';
+        document.getElementById('eDescripcion').value = evento ? (evento.descripcion || '') : '';
+        document.getElementById('eTipo').value = evento ? evento.tipo : '';
+        document.getElementById('eTodoDia').checked = evento ? evento.todoElDia : false;
+        alternarTodoDia(true);
+        const recorte = (s, todo) => todo ? s.slice(0, 10) : s.slice(0, 16);
+        document.getElementById('eInicio').value = evento ? recorte(evento.inicio, evento.todoElDia) : (document.getElementById('eTodoDia').checked ? iso(base) : isoHora(base).slice(0, 16));
+        document.getElementById('eFin').value = evento ? recorte(evento.fin, evento.todoElDia) : isoHora(fin).slice(0, 16);
+        document.getElementById('fondoEvento').classList.remove('oculto');
+    }
+    function cerrarFormEvento() { document.getElementById('fondoEvento').classList.add('oculto'); }
+
+    // Con "Todo el día" los campos pasan de fecha y hora a solo fecha
+    function alternarTodoDia(sinConvertir) {
+        const todo = document.getElementById('eTodoDia').checked;
+        const ini = document.getElementById('eInicio'), fin = document.getElementById('eFin');
+        const vi = ini.value, vf = fin.value;
+        ini.type = fin.type = todo ? 'date' : 'datetime-local';
+        if (sinConvertir !== true) {
+            ini.value = todo ? vi.slice(0, 10) : (vi ? vi.slice(0, 10) + 'T09:00' : '');
+            fin.value = todo ? vf.slice(0, 10) : (vf ? vf.slice(0, 10) + 'T10:00' : '');
+        }
+    }
+
+    async function guardarEvento() {
+        const err = document.getElementById('errorEvento');
+        err.textContent = '';
+        const cuerpo = {
+            medicoId: usuario.id,
+            titulo: document.getElementById('eTitulo').value,
+            descripcion: document.getElementById('eDescripcion').value,
+            inicio: document.getElementById('eInicio').value,
+            fin: document.getElementById('eFin').value,
+            tipo: document.getElementById('eTipo').value,
+            todoElDia: document.getElementById('eTodoDia').checked
+        };
+        const url = eventoEditando ? `/api/agenda/eventos/${eventoEditando.id}` : '/api/agenda/eventos';
+        const r = await fetch(url, { method: eventoEditando ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+        const d = await r.json();
+        if (!r.ok) {
+            // FA03: se resaltan los campos con error y se muestra el mensaje específico
+            err.textContent = d.error;
+            const m = d.error.toLowerCase();
+            claseInvalido('eTitulo', m.includes('título'));
+            claseInvalido('eInicio', m.includes('inicio') && !m.includes('posterior'));
+            claseInvalido('eFin', m.includes('fin'));
+            claseInvalido('eTipo', m.includes('tipo'));
+            return;
+        }
+        cerrarFormEvento();
+        aviso(d.mensaje + (d.citasEnConflicto ? ` Atención: hay ${d.citasEnConflicto} cita(s) programada(s) en ese horario.` : ''), d.citasEnConflicto ? 'aviso' : 'exito');
+        const inicioEv = aFecha(d.inicio);
+        if (inicioEv < rango()[0] || inicioEv >= rango()[1]) { cursor = inicioEv; }
+        await cargar();
+    }
+
+    function editarEvento(id) { cerrarPopover(); abrirFormEvento(datos.eventos.find(e => e.id === id)); }
+
+    function pedirConfirmacion(texto, cb) {
+        document.getElementById('textoConfirmar').textContent = texto;
+        confirmarCallback = cb;
+        document.getElementById('fondoConfirmar').classList.remove('oculto');
+    }
+    function responderConfirmar(ok) {
+        document.getElementById('fondoConfirmar').classList.add('oculto');
+        const cb = confirmarCallback; confirmarCallback = null;
+        if (ok && cb) cb();
+    }
+
+    // FA04
+    function pedirEliminarEvento(id) {
+        cerrarPopover();
+        pedirConfirmacion('¿Está seguro de eliminar este evento?', async () => {
+            const r = await fetch(`/api/agenda/eventos/${id}?medicoId=${usuario.id}`, { method: 'DELETE' });
+            const d = await r.json();
+            aviso(r.ok ? d.mensaje : d.error, r.ok ? 'exito' : 'error');
+            await cargar();
+        });
+    }
+
+    // ---------------------------------------------------------------- tareas (FA06)
+    function alternarPanel() { document.getElementById('panelTareas').classList.toggle('oculto'); pintarTareas(); }
+
+    function filtrarTareas(f) {
+        filtroTareas = f;
+        [['fPendientes', 'PENDIENTES'], ['fCompletadas', 'COMPLETADAS'], ['fTodas', 'TODAS']].forEach(([id, v]) => document.getElementById(id).classList.toggle('activo', v === f));
+        pintarTareas();
+    }
+
+    async function pintarTareas() {
+        const panel = document.getElementById('panelTareas');
+        if (panel.classList.contains('oculto')) return;
+        document.getElementById('subTareas').textContent = elegido.toLocaleDateString('es-GT', { dateStyle: 'full' });
+        const r = await fetch(`/api/agenda/${usuario.id}/tareas?fecha=${iso(elegido)}&estado=${filtroTareas}`);
+        const tareas = await r.json();
+        if (!r.ok) { aviso(tareas.error, 'error'); return; }
+        document.querySelector('#panelTareas h3').textContent = `Tareas (${tareas.length})`;
+        document.getElementById('listaTareas').innerHTML = tareas.length === 0
+            ? '<div class="vacio">No hay tareas para este día.</div>'
+            : tareas.map(t => `<div class="tarea ${t.completada ? 'hecha' : ''}">
+                <input type="checkbox" ${t.completada ? 'checked' : ''} onchange="completarTarea(${t.id}, this.checked)" title="Completar">
+                <div class="t-info"><div class="t-titulo">${esc(t.titulo)}</div>
+                    ${t.descripcion ? `<div>${esc(t.descripcion)}</div>` : ''}
+                    <div><span class="prio" style="background:${PRIO[t.prioridad]}"></span>${esc(t.prioridadEtiqueta)} · Límite: ${new Date(t.fechaLimite + 'T00:00:00').toLocaleDateString('es-GT')} · ${esc(t.estado)}</div></div>
+                <button class="rojo" style="padding:4px 8px" onclick="eliminarTarea(${t.id})" title="Eliminar">✕</button></div>`).join('');
+    }
+
+    function abrirFormTarea() {
+        ['tTitulo', 'tDescripcion'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('tPrioridad').value = 'NORMAL';
+        document.getElementById('tFecha').value = iso(elegido);
+        document.getElementById('errorTarea').textContent = '';
+        document.getElementById('fondoTarea').classList.remove('oculto');
+    }
+
+    async function guardarTarea() {
+        const r = await fetch('/api/agenda/tareas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+            medicoId: usuario.id, titulo: document.getElementById('tTitulo').value, descripcion: document.getElementById('tDescripcion').value,
+            prioridad: document.getElementById('tPrioridad').value, fechaLimite: document.getElementById('tFecha').value }) });
+        const d = await r.json();
+        if (!r.ok) { document.getElementById('errorTarea').textContent = d.error; return; }
+        document.getElementById('fondoTarea').classList.add('oculto');
+        aviso('Tarea creada exitosamente.', 'exito');
+        // si la tarea es de otro día, se muestra ese día
+        if (d.fechaLimite !== iso(elegido)) elegido = new Date(d.fechaLimite + 'T00:00:00');
+        await cargar();
+    }
+
+    async function completarTarea(id, completada) {
+        await fetch(`/api/agenda/tareas/${id}/completar`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ medicoId: usuario.id, completada }) });
+        pintarTareas();
+    }
+
+    async function eliminarTarea(id) {
+        const r = await fetch(`/api/agenda/tareas/${id}?medicoId=${usuario.id}`, { method: 'DELETE' });
+        const d = await r.json();
+        aviso(r.ok ? d.mensaje : d.error, r.ok ? 'exito' : 'error');
+        pintarTareas();
+    }
+
+    crearLeyenda();
+    cargar();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ package com.hospital.sistemamedico.service;
 import com.hospital.sistemamedico.model.*;
 import com.hospital.sistemamedico.repository.CitaRepository;
 import com.hospital.sistemamedico.repository.ConsultaRepository;
+import com.hospital.sistemamedico.repository.EventoAgendaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -30,6 +31,8 @@ class CitaServiceSeguimientoTest {
     private ConsultaRepository consultaRepository;
     private UsuarioService usuarioService;
     private EmailService emailService;
+    private AgendaService agendaService;
+    private EventoAgendaRepository eventoAgendaRepository;
     private Cita origen;
 
     @BeforeEach
@@ -47,6 +50,10 @@ class CitaServiceSeguimientoTest {
         ReflectionTestUtils.setField(servicio, "emailService", emailService);
         ReflectionTestUtils.setField(servicio, "sucursalService", sucursalService);
         ReflectionTestUtils.setField(servicio, "especialidadService", especialidadService);
+        agendaService = mock(AgendaService.class);
+        eventoAgendaRepository = mock(EventoAgendaRepository.class);
+        ReflectionTestUtils.setField(servicio, "agendaService", agendaService);
+        ReflectionTestUtils.setField(servicio, "eventoAgendaRepository", eventoAgendaRepository);
 
         Sucursal sucursal = new Sucursal();
         sucursal.setId(1L);
@@ -143,6 +150,31 @@ class CitaServiceSeguimientoTest {
         assertEquals("El horario seleccionado ya no está disponible. Por favor, elija otro horario.",
                 errorAgendando("MONITOREO_TRATAMIENTO", horarioValido(), "Observaciones válidas"));
         verify(emailService, never()).enviarNotificacionSeguimiento(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void unEventoDeLaAgendaDelMedicoImpideAgendarEnEseHorario() {
+        when(agendaService.medicoOcupadoPorEvento(eq(3L), any())).thenReturn(true);
+        assertEquals("El horario seleccionado ya no está disponible. Por favor, elija otro horario.",
+                errorAgendando("MONITOREO_TRATAMIENTO", horarioValido(), "Observaciones válidas"));
+    }
+
+    @Test
+    void elCalendarioMarcaNoDisponiblesLosHorariosCubiertosPorUnEvento() {
+        LocalDate dia = LocalDate.now().plusDays(2);
+        EventoAgenda evento = new EventoAgenda();
+        evento.setInicio(dia.atTime(9, 0));
+        evento.setFin(dia.atTime(11, 0));
+        when(citaRepository.findByMedicoIdAndFechaHoraBetween(eq(3L), any(), any())).thenReturn(List.of());
+        when(eventoAgendaRepository.findByMedicoIdAndInicioLessThanAndFinGreaterThanOrderByInicio(eq(3L), any(), any())).thenReturn(List.of(evento));
+
+        List<Map<String, Object>> horarios = servicio.disponibilidad(3L, dia.toString());
+        java.util.function.Function<String, Object> disp = h -> horarios.stream().filter(x -> x.get("hora").equals(h)).findFirst().get().get("disponible");
+
+        assertEquals(true, disp.apply("08:30"));
+        assertEquals(false, disp.apply("09:00"));
+        assertEquals(false, disp.apply("10:30"));
+        assertEquals(true, disp.apply("11:00"));
     }
 
     @Test
