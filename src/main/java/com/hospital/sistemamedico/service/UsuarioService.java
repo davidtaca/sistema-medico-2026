@@ -4,6 +4,8 @@ import com.hospital.sistemamedico.model.Rol;
 import com.hospital.sistemamedico.model.Usuario;
 import com.hospital.sistemamedico.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,6 +20,9 @@ import java.util.List;
  */
 @Service
 public class UsuarioService {
+
+    /** Las contraseñas se guardan con BCrypt: nunca en texto plano ni recuperables. */
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Autowired
     private UsuarioRepository usuarioRepository;
@@ -76,17 +81,18 @@ public class UsuarioService {
             throw new IllegalArgumentException("La contraseña debe contener al menos 12 caracteres.");
         }
 
-        // RN-GLOBAL-001 (vía RN-CU01-07): DPI opcional para personal interno
+        boolean esPaciente = usuario.getRol() == Rol.PACIENTE;
+
+        // RN-GLOBAL-001: DPI obligatorio para el paciente (CU-02) y opcional para el personal interno (RN-CU01-07)
+        if (esPaciente && (usuario.getDpi() == null || usuario.getDpi().isBlank())) {
+            throw new IllegalArgumentException("El campo DPI es obligatorio. Por favor, ingrese su número de DPI.");
+        }
         if (usuario.getDpi() != null && !usuario.getDpi().isBlank()) {
-            if (!usuario.getDpi().matches("^\\d{13}$")) {
-                throw new IllegalArgumentException("El DPI debe contener exactamente 13 dígitos numéricos.");
-            }
+            validarFormatoDpi(usuario.getDpi().trim());
             if (usuarioRepository.existsByDpi(usuario.getDpi())) {
                 throw new IllegalArgumentException("Ya existe una cuenta registrada con este número de DPI. Si ya tiene cuenta, inicie sesión.");
             }
         }
-
-        boolean esPaciente = usuario.getRol() == Rol.PACIENTE;
 
         // RN-CU01-08 (interno, opcional) / RN-CU02-02 (paciente, obligatorio): Teléfono
         if (esPaciente && (usuario.getTelefono() == null || usuario.getTelefono().isBlank())) {
@@ -146,7 +152,12 @@ public class UsuarioService {
             throw new IllegalArgumentException("Ya existe una cuenta registrada con este correo electrónico.");
         }
 
-        usuario.setActivo(true);
+        // RN-CU01-10: el estado del personal interno se elige al crearlo (por defecto Activo);
+        // un paciente que se autorregistra siempre queda activo.
+        if (esPaciente) {
+            usuario.setActivo(true);
+        }
+        usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
         return usuarioRepository.save(usuario);
     }
 
@@ -180,7 +191,7 @@ public class UsuarioService {
             }
         }
 
-        if (!usuario.getPassword().equals(password)) {
+        if (password == null || !coincideContrasena(usuario, password)) {
             usuario.setIntentosFallidos(usuario.getIntentosFallidos() + 1);
 
             if (usuario.getIntentosFallidos() >= MAX_INTENTOS) {
@@ -204,6 +215,62 @@ public class UsuarioService {
         usuarioRepository.save(usuario);
 
         return usuario;
+    }
+
+    /**
+     * Valida el formato del DPI con los tres mensajes de la regla global RN-GLOBAL-001:
+     * solo dígitos y exactamente 13.
+     */
+    private void validarFormatoDpi(String dpi) {
+        if (dpi.isEmpty()) {
+            throw new IllegalArgumentException("El campo DPI es obligatorio. Por favor, ingrese su número de DPI.");
+        }
+        if (!dpi.matches("^[0-9]+$")) {
+            throw new IllegalArgumentException("El DPI debe contener únicamente números. No se permiten letras ni caracteres especiales.");
+        }
+        if (dpi.length() != 13) {
+            throw new IllegalArgumentException("El DPI debe contener exactamente 13 dígitos. Usted ingresó " + dpi.length() + " dígitos.");
+        }
+    }
+
+    /** true si la contraseña escrita corresponde a la guardada (BCrypt; se acepta una contraseña antigua en texto plano). */
+    private boolean coincideContrasena(Usuario usuario, String ingresada) {
+        String guardada = usuario.getPassword();
+        if (guardada == null) {
+            return false;
+        }
+        if (esHashBcrypt(guardada)) {
+            return passwordEncoder.matches(ingresada, guardada);
+        }
+        // Cuenta creada antes del cifrado: se acepta y se cifra en este mismo inicio de sesión
+        if (guardada.equals(ingresada)) {
+            usuario.setPassword(passwordEncoder.encode(ingresada));
+            return true;
+        }
+        return false;
+    }
+
+    private boolean esHashBcrypt(String valor) {
+        return valor.startsWith("$2a$") || valor.startsWith("$2b$") || valor.startsWith("$2y$");
+    }
+
+    /**
+     * Cifra con BCrypt las contraseñas que todavía estén en texto plano
+     * (cuentas creadas antes de que el sistema cifrara las contraseñas). Se
+     * ejecuta una vez al iniciar la aplicación y no toca las ya cifradas.
+     *
+     * @return cuántas contraseñas se cifraron
+     */
+    public int cifrarContrasenasEnTextoPlano() {
+        int cifradas = 0;
+        for (Usuario u : usuarioRepository.findAll()) {
+            if (u.getPassword() != null && !esHashBcrypt(u.getPassword())) {
+                u.setPassword(passwordEncoder.encode(u.getPassword()));
+                usuarioRepository.save(u);
+                cifradas++;
+            }
+        }
+        return cifradas;
     }
 
     /**
@@ -290,6 +357,7 @@ public class UsuarioService {
      * @throws IllegalArgumentException si no existe ningún usuario con ese DPI
      */
     public Usuario buscarPorDpi(String dpi) {
+        validarFormatoDpi(dpi == null ? "" : dpi.trim());
         return usuarioRepository.findByDpi(dpi)
                 .orElseThrow(() -> new IllegalArgumentException("No se encontró ningún paciente con ese DPI."));
     }
@@ -307,6 +375,18 @@ public class UsuarioService {
      *         o si el nuevo username/correo ya está en uso por otro usuario
      */
     public Usuario actualizarUsuario(Long id, Usuario datosActualizados) {
+        return actualizarUsuario(id, datosActualizados, null);
+    }
+
+    /**
+     * Igual que {@link #actualizarUsuario(Long, Usuario)}, pero además permite
+     * cambiar el estado del usuario (Activo/Inactivo, RN-CU01-10) y valida que un
+     * médico siempre quede con especialidad (RN-CU01-14).
+     *
+     * @param nuevoEstado true = Activo, false = Inactivo; null = no cambiar el estado
+     *        (necesario porque el campo "activo" del Usuario siempre trae un valor por defecto)
+     */
+    public Usuario actualizarUsuario(Long id, Usuario datosActualizados, Boolean nuevoEstado) {
         Usuario existente = buscarPorId(id);
 
         if (datosActualizados.getNombreCompleto() != null && !datosActualizados.getNombreCompleto().isBlank()) {
@@ -342,13 +422,11 @@ public class UsuarioService {
             if (datosActualizados.getPassword().length() < 12) {
                 throw new IllegalArgumentException("La contraseña debe contener al menos 12 caracteres.");
             }
-            existente.setPassword(datosActualizados.getPassword());
+            existente.setPassword(passwordEncoder.encode(datosActualizados.getPassword()));
         }
 
         if (datosActualizados.getDpi() != null && !datosActualizados.getDpi().isBlank()) {
-            if (!datosActualizados.getDpi().matches("^\\d{13}$")) {
-                throw new IllegalArgumentException("El DPI debe contener exactamente 13 dígitos numéricos.");
-            }
+            validarFormatoDpi(datosActualizados.getDpi().trim());
             existente.setDpi(datosActualizados.getDpi());
         }
 
@@ -367,7 +445,10 @@ public class UsuarioService {
             if (!datosActualizados.getNit().isBlank()) {
                 int longitudNit = datosActualizados.getNit().trim().length();
                 if (longitudNit < 8 || longitudNit > 9) {
-                    throw new IllegalArgumentException("El NIT debe contener entre 8 y 9 caracteres.");
+                    throw new IllegalArgumentException("El NIT debe contener entre 8 y 9 caracteres. Usted ingresó " + longitudNit + " caracteres.");
+                }
+                if (!datosActualizados.getNit().trim().matches("^[a-zA-Z0-9]+$")) {
+                    throw new IllegalArgumentException("El NIT debe contener únicamente caracteres alfanuméricos.");
                 }
             }
             existente.setNit(datosActualizados.getNit());
@@ -389,6 +470,16 @@ public class UsuarioService {
 
         if (datosActualizados.getEspecialidad() != null) {
             existente.setEspecialidad(datosActualizados.getEspecialidad());
+        }
+
+        // RN-CU01-14: un médico siempre debe tener especialidad (de ella depende el agendamiento de citas)
+        if (existente.getRol() == Rol.MEDICO && existente.getEspecialidad() == null) {
+            throw new IllegalArgumentException("Debe seleccionar una especialidad para el médico.");
+        }
+
+        // RN-CU01-10: estado del usuario
+        if (nuevoEstado != null) {
+            existente.setActivo(nuevoEstado);
         }
 
         return usuarioRepository.save(existente);

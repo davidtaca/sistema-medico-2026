@@ -4,13 +4,21 @@
   <meta charset="UTF-8">
   <title>Gestión de Usuarios</title>
   <style>
+    * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
-    .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 420px; max-width: 100%; }
-    h2 { text-align: center; color: #2b6cb0; }
+    .contenedor { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 440px; max-width: 100%; }
+    h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
     label { display: block; margin-top: 12px; font-size: 14px; color: #333; }
-    input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-    button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
-    button:hover { background: #2c5282; }
+    label .req { color: #c53030; }
+    label small { color: #718096; }
+    input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
+    .invalido { border-color: #c53030 !important; background: #fff5f5; }
+    .botones { display: flex; gap: 10px; margin-top: 22px; }
+    button { flex: 1; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+    button:hover:not(:disabled) { background: #2c5282; }
+    button:disabled { background: #a0aec0; cursor: not-allowed; }
+    button.cancelar { background: #718096; }
+    button.cancelar:hover { background: #4a5568; }
     #mensaje { margin-top: 15px; text-align: center; font-size: 14px; }
     .error { color: #c53030; }
     .exito { color: #2f855a; }
@@ -20,45 +28,64 @@
 </head>
 <body>
 <div class="contenedor">
-  <h2>Crear Usuario Interno</h2>
+  <h2>Crear Usuario</h2>
 
-  <label for="rol">Rol</label>
+  <label for="nombreCompleto">Nombre completo <span class="req">*</span></label>
+  <input type="text" id="nombreCompleto" maxlength="100">
+
+  <label for="correo">Correo electrónico <span class="req">*</span></label>
+  <input type="email" id="correo">
+
+  <label for="username">Nombre de usuario <span class="req">*</span> <small>(8 a 9 caracteres alfanuméricos)</small></label>
+  <input type="text" id="username" maxlength="9">
+
+  <label for="password">Contraseña <span class="req">*</span> <small>(mínimo 12 caracteres)</small></label>
+  <input type="password" id="password">
+
+  <label for="dpi">Documento de identificación (DPI) <small>(opcional)</small></label>
+  <input type="text" id="dpi" maxlength="13" inputmode="numeric">
+
+  <label for="telefono">Número de teléfono <small>(opcional)</small></label>
+  <input type="text" id="telefono" maxlength="8" inputmode="numeric">
+
+  <label for="rol">Rol <span class="req">*</span></label>
   <select id="rol">
+    <option value="">Seleccione...</option>
     <option value="MEDICO">Médico</option>
-    <option value="ENFERMERO">Enfermería</option>
+    <option value="ENFERMERO">Enfermero</option>
     <option value="RECEPCIONISTA">Recepcionista</option>
     <option value="CAJERO">Cajero</option>
+    <option value="LABORATORISTA">Laboratorista</option>
+    <option value="FARMACEUTICO">Farmacéutico</option>
     <option value="ADMINISTRADOR">Administrador</option>
   </select>
 
-  <label for="nombreCompleto">Nombre completo</label>
-  <input type="text" id="nombreCompleto">
+  <label for="nit">NIT <small>(opcional)</small></label>
+  <input type="text" id="nit" maxlength="9">
 
-  <label for="dpi">DPI</label>
-  <input type="text" id="dpi" maxlength="13">
+  <label for="numeroSeguro">Número de seguro <small>(opcional)</small></label>
+  <input type="text" id="numeroSeguro" maxlength="50">
 
-  <label for="telefono">Teléfono</label>
-  <input type="text" id="telefono">
-
-  <label for="correo">Correo</label>
-  <input type="email" id="correo">
-
-  <label for="username">Nombre de usuario</label>
-  <input type="text" id="username">
-
-  <label for="password">Contraseña</label>
-  <input type="password" id="password">
+  <label for="sucursal">Sucursal <span class="req">*</span></label>
+  <select id="sucursal"><option value="">Seleccione...</option></select>
 
   <div id="camposMedico">
-    <label for="sucursal">Sucursal</label>
-    <select id="sucursal"><option value="">Seleccione...</option></select>
-
-    <label for="especialidad">Especialidad</label>
+    <label for="especialidad">Especialidad <span class="req">*</span> <small>(solo médicos)</small></label>
     <select id="especialidad"><option value="">Seleccione...</option></select>
   </div>
 
-  <button onclick="crearUsuario()">Crear Usuario</button>
+  <label for="estado">Estado <span class="req">*</span></label>
+  <select id="estado">
+    <option value="true">Activo</option>
+    <option value="false">Inactivo</option>
+  </select>
+
+  <div class="botones">
+    <button class="cancelar" onclick="cancelar()">Cancelar</button>
+    <button id="btnCrear" onclick="crearUsuario()">Crear</button>
+  </div>
   <div id="mensaje"></div>
+  <a href="/listar-usuarios.html">Ver listado de usuarios</a>
   <a href="/menu.html">Volver al menú</a>
 </div>
 
@@ -70,69 +97,73 @@
     window.location.href = '/index.html';
   }
 
-  const selectRol = document.getElementById('rol');
-  const camposMedico = document.getElementById('camposMedico');
+  const $ = id => document.getElementById(id);
+  const selectRol = $('rol');
 
+  // RN-CU01-14: la especialidad solo se muestra cuando el rol es Médico
   selectRol.addEventListener('change', () => {
-    camposMedico.style.display = selectRol.value === 'MEDICO' ? 'block' : 'none';
+    $('camposMedico').style.display = selectRol.value === 'MEDICO' ? 'block' : 'none';
+    if (selectRol.value !== 'MEDICO') $('especialidad').value = '';
   });
 
+  // La sucursal es obligatoria para todo usuario interno (RN-CU01-06 y RN-CU01-13);
+  // el desplegable muestra solo las sucursales activas.
   async function cargarListas() {
     const sucursales = await fetch('/api/sucursales/activas').then(r => r.json());
     const especialidades = await fetch('/api/especialidades/activas').then(r => r.json());
+    sucursales.forEach(s => $('sucursal').add(new Option(s.nombre, s.id)));
+    especialidades.forEach(e => $('especialidad').add(new Option(e.nombre, e.id)));
+  }
 
-    const selectSucursal = document.getElementById('sucursal');
-    sucursales.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.nombre;
-      selectSucursal.appendChild(opt);
-    });
+  // FA07: cancelar descarta los datos y vuelve al listado
+  function cancelar() { window.location.href = '/listar-usuarios.html'; }
 
-    const selectEspecialidad = document.getElementById('especialidad');
-    especialidades.forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.id;
-      opt.textContent = e.nombre;
-      selectEspecialidad.appendChild(opt);
-    });
+  const CAMPOS = ['nombreCompleto', 'correo', 'username', 'password', 'dpi', 'telefono', 'rol', 'nit', 'numeroSeguro', 'sucursal', 'especialidad', 'estado'];
+
+  // FA06: resalta en rojo el campo al que se refiere el mensaje de error del servidor
+  function resaltar(error) {
+    CAMPOS.forEach(c => $(c).classList.remove('invalido'));
+    const m = error.toLowerCase();
+    let campo = null;
+    if (m.includes('nombre de usuario') || /campo usuario|^el usuario /.test(m)) campo = 'username';
+    else if (m.includes('nombre')) campo = 'nombreCompleto';
+    else if (m.includes('correo')) campo = 'correo';
+    else if (m.includes('contraseña')) campo = 'password';
+    else if (m.includes('dpi')) campo = 'dpi';
+    else if (m.includes('teléfono') || m.includes('telefono')) campo = 'telefono';
+    else if (/\bnit\b/.test(m)) campo = 'nit';
+    else if (m.includes('seguro')) campo = 'numeroSeguro';
+    else if (m.includes('sucursal')) campo = 'sucursal';
+    else if (m.includes('especialidad')) campo = 'especialidad';
+    else if (/\brol\b/.test(m)) campo = 'rol';
+    else if (m.includes('estado')) campo = 'estado';
+    if (campo) { $(campo).classList.add('invalido'); $(campo).focus(); }
   }
 
   async function crearUsuario() {
-    const mensaje = document.getElementById('mensaje');
+    const mensaje = $('mensaje');
     mensaje.textContent = '';
     mensaje.className = '';
+    CAMPOS.forEach(c => $(c).classList.remove('invalido'));
 
     const datos = {
-      nombreCompleto: document.getElementById('nombreCompleto').value.trim(),
-      dpi: document.getElementById('dpi').value.trim(),
-      telefono: document.getElementById('telefono').value.trim(),
-      correo: document.getElementById('correo').value.trim(),
-      username: document.getElementById('username').value.trim(),
-      password: document.getElementById('password').value,
-      rol: selectRol.value
+      nombreCompleto: $('nombreCompleto').value.trim(),
+      correo: $('correo').value.trim(),
+      username: $('username').value.trim(),
+      password: $('password').value,
+      dpi: $('dpi').value.trim(),
+      telefono: $('telefono').value.trim(),
+      nit: $('nit').value.trim(),
+      numeroSeguro: $('numeroSeguro').value.trim(),
+      activo: $('estado').value === 'true'
     };
+    if (selectRol.value) datos.rol = selectRol.value;
+    if ($('sucursal').value) datos.sucursal = { id: $('sucursal').value };
+    if (selectRol.value === 'MEDICO' && $('especialidad').value) datos.especialidad = { id: $('especialidad').value };
 
-    if (!datos.nombreCompleto || !datos.correo || !datos.username || !datos.password) {
-      mensaje.textContent = 'Complete todos los campos obligatorios.';
-      mensaje.className = 'error';
-      return;
-    }
-
-    if (datos.rol === 'MEDICO') {
-      const sucursalId = document.getElementById('sucursal').value;
-      const especialidadId = document.getElementById('especialidad').value;
-      if (!sucursalId || !especialidadId) {
-        mensaje.textContent = 'Un médico debe tener sucursal y especialidad asignadas.';
-        mensaje.className = 'error';
-        return;
-      }
-      datos.sucursal = { id: sucursalId };
-      datos.especialidad = { id: especialidadId };
-    }
-
+    $('btnCrear').disabled = true;
     try {
-      const respuesta = await fetch('/api/usuarios', {
+      const respuesta = await fetch(`/api/usuarios?adminId=${usuario.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)
@@ -142,21 +173,30 @@
       if (!respuesta.ok) {
         mensaje.textContent = resultado.error || 'No se pudo crear el usuario.';
         mensaje.className = 'error';
+        resaltar(mensaje.textContent);
+        $('btnCrear').disabled = false;
         return;
       }
 
-      mensaje.textContent = `Usuario ${resultado.nombreCompleto} (${resultado.rol}) creado exitosamente.`;
+      mensaje.textContent = 'Usuario creado correctamente.';
       mensaje.className = 'exito';
-
       document.querySelectorAll('input').forEach(i => i.value = '');
+      selectRol.value = '';
+      $('sucursal').value = '';
+      $('especialidad').value = '';
+      $('estado').value = 'true';
+      $('camposMedico').style.display = 'none';
+      $('btnCrear').disabled = false;
 
     } catch (error) {
       mensaje.textContent = 'No se pudo conectar con el servidor.';
       mensaje.className = 'error';
+      $('btnCrear').disabled = false;
     }
   }
 
   cargarListas();
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

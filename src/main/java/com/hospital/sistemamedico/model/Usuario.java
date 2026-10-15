@@ -1,5 +1,6 @@
 package com.hospital.sistemamedico.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -31,6 +32,11 @@ public class Usuario {
     @Column(nullable = false, unique = true)
     private String username;
 
+    /**
+     * Contraseña cifrada con BCrypt. Solo se puede escribir (al crear o editar la cuenta):
+     * nunca se incluye en las respuestas de la API.
+     */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(nullable = false)
     private String password;
 

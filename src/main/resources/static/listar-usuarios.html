@@ -52,10 +52,12 @@
             <option value="USERNAME">Nombre de Usuario</option>
             <option value="DPI">DPI</option>
         </select>
-        <input type="text" id="valorBusqueda" placeholder="Buscar...">
+        <input type="text" id="valorBusqueda" placeholder="Buscar..." maxlength="26">
         <button onclick="buscar()">🔍 Buscar</button>
         <button class="limpiar" onclick="limpiarBusqueda()">Limpiar</button>
     </div>
+
+    <div id="mensajeLista" style="text-align:center;font-size:14px;margin-bottom:8px;min-height:18px;"></div>
 
     <table>
         <thead>
@@ -100,6 +102,24 @@
 </div>
 
 <script>
+    const admin = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!admin || admin.rol !== 'ADMINISTRADOR') {
+        alert('Debe iniciar sesión como administrador.');
+        window.location.href = '/index.html';
+    }
+
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+    function avisoLista(texto, clase) {
+        const m = document.getElementById('mensajeLista');
+        m.textContent = texto;
+        m.style.color = clase === 'error' ? '#c53030' : '#2f855a';
+        m.style.fontWeight = clase === 'exito' ? 'bold' : 'normal';
+    }
+
     let todosLosUsuarios = [];
     let usuariosFiltrados = [];
     let paginaActual = 1;
@@ -115,7 +135,12 @@
     async function buscar() {
         const campo = document.getElementById('campoFiltro').value;
         const valor = document.getElementById('valorBusqueda').value.trim();
+        avisoLista('');
 
+        if (valor.length > 25) {
+            avisoLista('El campo de búsqueda no puede exceder los 25 caracteres.', 'error');
+            return;
+        }
         if (!valor) {
             usuariosFiltrados = todosLosUsuarios;
         } else {
@@ -156,14 +181,14 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
       <td>${u.id}</td>
-      <td>${u.nombreCompleto}</td>
-      <td>${u.correo}</td>
-      <td>${u.rol}</td>
-      <td>${u.username}</td>
+      <td>${esc(u.nombreCompleto)}</td>
+      <td>${esc(u.correo)}</td>
+      <td>${esc(u.rol)}</td>
+      <td>${esc(u.username)}</td>
       <td><span class="badge ${u.activo ? 'activo' : 'inactivo'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
       <td class="acciones">
         <button class="btn-editar" onclick="editarUsuario(${u.id})">Editar</button>
-        <button class="btn-eliminar" onclick="abrirModalEliminar(${u.id}, '${u.username}')">Eliminar</button>
+        <button class="btn-eliminar" onclick="abrirModalEliminar(${u.id}, '${esc(u.username)}')">Eliminar</button>
       </td>
     `;
             tbody.appendChild(tr);
@@ -198,18 +223,25 @@
 
     async function confirmarEliminar() {
         if (!idAEliminar) return;
+        const username = document.getElementById('nombreAEliminar').textContent;
         try {
-            const respuesta = await fetch(`/api/usuarios/${idAEliminar}`, { method: 'DELETE' });
+            const respuesta = await fetch(`/api/usuarios/${idAEliminar}?adminId=${admin.id}`, { method: 'DELETE' });
+            cerrarModalEliminar();
             if (respuesta.ok) {
-                cerrarModalEliminar();
+                avisoLista(`El usuario ${username} ha sido eliminado correctamente.`, 'exito');
                 cargarUsuarios();
+            } else {
+                const d = await respuesta.json().catch(() => ({}));
+                avisoLista(d.error || 'No se pudo eliminar el usuario.', 'error');
             }
         } catch (error) {
-            alert('No se pudo conectar con el servidor.');
+            cerrarModalEliminar();
+            avisoLista('No se pudo conectar con el servidor.', 'error');
         }
     }
 
     cargarUsuarios();
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

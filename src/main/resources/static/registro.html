@@ -52,6 +52,22 @@
 </div>
 
 <script>
+    // FA04: resalta en rojo el campo al que se refiere un mensaje de error devuelto por el servidor
+    // (por ejemplo, DPI o correo ya registrados, FA02 y FA03)
+    function resaltarError(error) {
+        const m = error.toLowerCase();
+        let campo = null;
+        if (m.includes('nombre de usuario') || /campo usuario|^el usuario /.test(m)) campo = 'username';
+        else if (m.includes('nombre')) campo = 'nombreCompleto';
+        else if (m.includes('dpi')) campo = 'dpi';
+        else if (/\bnit\b/.test(m)) campo = 'nit';
+        else if (m.includes('teléfono') || m.includes('telefono')) campo = 'telefono';
+        else if (m.includes('seguro')) campo = 'numeroSeguro';
+        else if (m.includes('correo')) campo = 'correo';
+        else if (m.includes('contraseña')) campo = 'password';
+        if (campo) { document.getElementById(campo).classList.add('error-campo'); document.getElementById(campo).focus(); }
+    }
+
     function limpiarErrores() {
         document.querySelectorAll('input').forEach(i => i.classList.remove('error-campo'));
     }
@@ -90,14 +106,24 @@
             document.getElementById('nombreCompleto').classList.add('error-campo');
             return;
         }
-        if (!/^\d{13}$/.test(datos.dpi)) {
-            mensaje.textContent = 'El DPI debe contener exactamente 13 dígitos numéricos.';
+        // RN-GLOBAL-001: DPI
+        let errorDpi = null;
+        if (!datos.dpi) errorDpi = 'El campo DPI es obligatorio. Por favor, ingrese su número de DPI.';
+        else if (!/^\d+$/.test(datos.dpi)) errorDpi = 'El DPI debe contener únicamente números. No se permiten letras ni caracteres especiales.';
+        else if (datos.dpi.length !== 13) errorDpi = `El DPI debe contener exactamente 13 dígitos. Usted ingresó ${datos.dpi.length} dígitos.`;
+        if (errorDpi) {
+            mensaje.textContent = errorDpi;
             mensaje.className = 'error';
             document.getElementById('dpi').classList.add('error-campo');
             return;
         }
-        if (!datos.nit || datos.nit.length < 8 || datos.nit.length > 9 || !/^[a-zA-Z0-9]+$/.test(datos.nit)) {
-            mensaje.textContent = 'El NIT debe contener entre 8 y 9 caracteres alfanuméricos.';
+        // RN-GLOBAL-002: NIT
+        let errorNit = null;
+        if (!datos.nit) errorNit = 'El campo NIT es obligatorio.';
+        else if (datos.nit.length < 8 || datos.nit.length > 9) errorNit = `El NIT debe contener entre 8 y 9 caracteres. Usted ingresó ${datos.nit.length} caracteres.`;
+        else if (!/^[a-zA-Z0-9]+$/.test(datos.nit)) errorNit = 'El NIT debe contener únicamente caracteres alfanuméricos.';
+        if (errorNit) {
+            mensaje.textContent = errorNit;
             mensaje.className = 'error';
             document.getElementById('nit').classList.add('error-campo');
             return;
@@ -150,6 +176,7 @@
             if (!respuesta.ok) {
                 mensaje.textContent = resultado.error || 'No se pudo completar el registro.';
                 mensaje.className = 'error';
+                resaltarError(mensaje.textContent);
                 return;
             }
 

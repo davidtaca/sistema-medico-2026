@@ -60,11 +60,11 @@
     <label for="numeroSeguro">Número de seguro</label>
     <input type="text" id="numeroSeguro">
 
-    <div id="camposMedico">
-        <label for="sucursal">Sucursal</label>
-        <select id="sucursal"><option value="">Sin cambio</option></select>
+    <label for="sucursal">Sucursal <small style="color:#718096;">(opcional)</small></label>
+    <select id="sucursal"><option value="">Sin cambio</option></select>
 
-        <label for="especialidad">Especialidad</label>
+    <div id="camposMedico">
+        <label for="especialidad">Especialidad <small style="color:#718096;">(solo médicos)</small></label>
         <select id="especialidad"><option value="">Sin cambio</option></select>
     </div>
 
@@ -82,9 +82,35 @@
 <script>
     const params = new URLSearchParams(window.location.search);
     const userId = params.get('id');
+    const admin = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
 
+    if (!admin || admin.rol !== 'ADMINISTRADOR') {
+        alert('Debe iniciar sesión como administrador.');
+        window.location.href = '/index.html';
+    }
     if (!userId) {
         window.location.href = '/listar-usuarios.html';
+    }
+
+    const CAMPOS = ['nombreCompleto', 'correo', 'username', 'password', 'dpi', 'telefono', 'rol', 'nit', 'numeroSeguro', 'sucursal', 'especialidad', 'estado'];
+
+    // FA06: resalta en rojo el campo al que se refiere el mensaje de error del servidor
+    function resaltar(error) {
+        CAMPOS.forEach(c => document.getElementById(c).classList.remove('error-campo'));
+        const m = error.toLowerCase();
+        let campo = null;
+        if (m.includes('nombre de usuario') || /campo usuario|^el usuario /.test(m)) campo = 'username';
+        else if (m.includes('nombre')) campo = 'nombreCompleto';
+        else if (m.includes('correo')) campo = 'correo';
+        else if (m.includes('contraseña')) campo = 'password';
+        else if (m.includes('dpi')) campo = 'dpi';
+        else if (m.includes('teléfono') || m.includes('telefono')) campo = 'telefono';
+        else if (/\bnit\b/.test(m)) campo = 'nit';
+        else if (m.includes('seguro')) campo = 'numeroSeguro';
+        else if (m.includes('sucursal')) campo = 'sucursal';
+        else if (m.includes('especialidad')) campo = 'especialidad';
+        else if (/\brol\b/.test(m)) campo = 'rol';
+        if (campo) { document.getElementById(campo).classList.add('error-campo'); document.getElementById(campo).focus(); }
     }
 
     const selectRol = document.getElementById('rol');
@@ -144,8 +170,7 @@
             telefono: document.getElementById('telefono').value.trim(),
             nit: document.getElementById('nit').value.trim(),
             numeroSeguro: document.getElementById('numeroSeguro').value.trim(),
-            rol: selectRol.value,
-            activo: document.getElementById('estado').value === 'true'
+            rol: selectRol.value
         };
 
         const password = document.getElementById('password').value;
@@ -153,15 +178,20 @@
             datos.password = password;
         }
 
+        // La sucursal es opcional en la edición y aplica a cualquier rol (RN-CU01-13);
+        // la especialidad solo a los médicos (RN-CU01-14).
+        const sucursalId = document.getElementById('sucursal').value;
+        if (sucursalId) datos.sucursal = { id: sucursalId };
         if (selectRol.value === 'MEDICO') {
-            const sucursalId = document.getElementById('sucursal').value;
             const especialidadId = document.getElementById('especialidad').value;
-            if (sucursalId) datos.sucursal = { id: sucursalId };
             if (especialidadId) datos.especialidad = { id: especialidadId };
         }
 
+        CAMPOS.forEach(c => document.getElementById(c).classList.remove('error-campo'));
+        const estado = document.getElementById('estado').value;
+
         try {
-            const respuesta = await fetch(`/api/usuarios/${userId}`, {
+            const respuesta = await fetch(`/api/usuarios/${userId}?estado=${estado}&adminId=${admin.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(datos)
@@ -171,6 +201,7 @@
             if (!respuesta.ok) {
                 mensaje.textContent = resultado.error || 'No se pudo actualizar el usuario.';
                 mensaje.className = 'error';
+                resaltar(mensaje.textContent);
                 return;
             }
 
@@ -186,5 +217,6 @@
 
     cargarDatos();
 </script>
+<script src="/sesion.js"></script>
 </body>
 </html>

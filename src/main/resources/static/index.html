@@ -2,64 +2,161 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sistema Médico - Portal</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 340px; }
-        h2 { text-align: center; color: #2b6cb0; }
-        p.sub { text-align: center; color: #718096; font-size: 13px; margin-top: -10px; }
-        label { display: block; margin-top: 15px; font-size: 14px; color: #333; }
-        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        input:disabled { background: #f1f1f1; }
-        button { width: 100%; margin-top: 20px; padding: 10px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; color: #2d3748; }
+
+        /* ---------- barra superior ---------- */
+        .topbar { position: sticky; top: 0; z-index: 5; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 12px 28px; }
+        .marca { font-size: 19px; font-weight: bold; color: #2b6cb0; text-decoration: none; }
+        .marca span { margin-right: 6px; }
+        .topbar nav { display: flex; gap: 18px; flex-wrap: wrap; }
+        .topbar nav a { color: #4a5568; text-decoration: none; font-size: 14px; }
+        .topbar nav a:hover { color: #2b6cb0; }
+        .acciones-top { display: flex; gap: 8px; }
+
+        button { padding: 10px 18px; background: #2b6cb0; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
         button:hover:not(:disabled) { background: #2c5282; }
         button:disabled { background: #a0aec0; cursor: not-allowed; }
-        button.secundario { background: #718096; }
-        button.secundario:hover { background: #4a5568; }
+        button.secundario { background: white; color: #2b6cb0; border: 1px solid #2b6cb0; }
+        button.secundario:hover { background: #ebf4ff; }
+
+        /* ---------- portada ---------- */
+        .hero { background: linear-gradient(135deg, #2b6cb0 0%, #2c5282 100%); color: white; text-align: center; padding: 70px 20px 80px; }
+        .hero h1 { margin: 0 0 12px; font-size: 38px; }
+        .hero p { max-width: 640px; margin: 0 auto 26px; font-size: 17px; line-height: 1.5; opacity: .95; }
+        .hero button { background: white; color: #2b6cb0; font-size: 17px; padding: 14px 34px; font-weight: bold; }
+        .hero button:hover:not(:disabled) { background: #ebf4ff; }
+        .hero .nota { font-size: 13px; opacity: .85; margin-top: 16px; }
+        .hero .nota a { color: white; }
+
+        section.bloque { max-width: 1100px; margin: 0 auto; padding: 44px 20px 10px; }
+        section.bloque h2 { color: #2b6cb0; text-align: center; margin: 0 0 6px; font-size: 26px; }
+        section.bloque .intro { text-align: center; color: #718096; font-size: 14px; margin: 0 0 24px; }
+        .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+        .tarjeta { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 20px; }
+        .tarjeta .icono { font-size: 30px; }
+        .tarjeta h3 { margin: 8px 0 6px; color: #2d3748; font-size: 17px; }
+        .tarjeta p { margin: 4px 0; font-size: 14px; color: #4a5568; line-height: 1.45; }
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .chip { background: #ebf4ff; color: #2b6cb0; font-size: 12px; border-radius: 12px; padding: 3px 10px; }
+        .dato { font-size: 14px; margin: 6px 0; }
+        .dato strong { color: #2b6cb0; }
+        table.horarios { width: 100%; max-width: 720px; margin: 0 auto; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); font-size: 14px; }
+        table.horarios th { background: #ebf4ff; color: #2b6cb0; text-align: left; padding: 12px 16px; }
+        table.horarios td { padding: 12px 16px; border-top: 1px solid #e2e8f0; }
+        .estado-carga { text-align: center; color: #718096; font-size: 14px; padding: 20px; }
+        footer { text-align: center; color: #718096; font-size: 13px; padding: 40px 20px; }
+
+        /* ---------- inicio de sesión y verificación ---------- */
+        .centro { display: none; justify-content: center; align-items: center; min-height: calc(100vh - 62px); padding: 20px; }
+        .caja { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 340px; max-width: 100%; }
+        .caja h2 { text-align: center; color: #2b6cb0; margin-top: 0; }
+        label { display: block; margin-top: 15px; font-size: 14px; color: #333; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
+        input:disabled { background: #f1f1f1; }
+        .caja button, .modal button { width: 100%; margin-top: 20px; font-size: 15px; }
         #mensaje, #mensajeModal { margin-top: 15px; text-align: center; font-size: 14px; }
         .error { color: #c53030; }
         .exito { color: #2f855a; }
         .info { color: #2b6cb0; }
-        #panel { display: none; margin-top: 20px; }
         a.enlace { display: block; text-align: center; margin-top: 15px; color: #2b6cb0; text-decoration: none; font-size: 13px; }
         a.enlace:hover { text-decoration: underline; }
         .contador { text-align: right; font-size: 11px; color: #a0aec0; margin-top: 3px; }
-        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 10; }
-        .modal { background: white; padding: 30px; border-radius: 10px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+        .modal { background: white; padding: 30px; border-radius: 10px; width: 320px; max-width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
         .modal h3 { color: #2b6cb0; margin-top: 0; }
         .modal p { font-size: 13px; color: #4a5568; }
         .cerrarModal { text-align: right; margin-top: 15px; }
         .cerrarModal a { color: #718096; font-size: 13px; cursor: pointer; text-decoration: underline; }
+
+        @media (max-width: 640px) {
+            .topbar { padding: 10px 14px; justify-content: center; }
+            .hero h1 { font-size: 28px; }
+            .hero { padding: 46px 16px 52px; }
+        }
     </style>
 </head>
 <body>
 
-<div class="caja" id="landing">
-    <h2>Portal Sistema Médico</h2>
-    <p class="sub">Servicios médicos, especialidades y agendamiento de citas</p>
-    <button onclick="abrirModal()">Agendar Cita</button>
-    <a href="#" class="enlace" onclick="mostrarLogin(); return false;">Ya tengo cuenta / Personal interno</a>
+<header class="topbar">
+    <a class="marca" href="#" onclick="mostrarLanding(); window.scrollTo(0,0); return false;"><span>🏥</span><span id="marcaNombre" style="margin:0">Portal Sistema Médico</span></a>
+    <nav>
+        <a href="#servicios" onclick="mostrarLanding()">Servicios</a>
+        <a href="#especialidades" onclick="mostrarLanding()">Especialidades</a>
+        <a href="#ubicaciones" onclick="mostrarLanding()">Ubicaciones</a>
+        <a href="#horarios" onclick="mostrarLanding()">Horarios</a>
+    </nav>
+    <div class="acciones-top">
+        <button onclick="abrirModal()">Agendar Cita</button>
+        <button class="secundario" onclick="mostrarLogin()">Iniciar sesión</button>
+    </div>
+</header>
+
+<!-- ================= Página principal (CU-00, paso 2) ================= -->
+<div id="landing">
+    <div class="hero">
+        <h1 id="heroNombre">Portal Sistema Médico</h1>
+        <p id="heroDescripcion">Servicios médicos, especialidades y agendamiento de citas.</p>
+        <button onclick="abrirModal()">Agendar Cita</button>
+        <div class="nota">¿Ya tiene cuenta o es personal del hospital? <a href="#" onclick="mostrarLogin(); return false;">Inicie sesión</a></div>
+    </div>
+
+    <section class="bloque" id="servicios">
+        <h2>Nuestros servicios</h2>
+        <p class="intro">Todo lo que necesita para su atención médica.</p>
+        <div class="rejilla" id="listaServicios"><div class="estado-carga">Cargando información...</div></div>
+    </section>
+
+    <section class="bloque" id="especialidades">
+        <h2>Especialidades</h2>
+        <p class="intro">Especialidades médicas disponibles para agendar su cita.</p>
+        <div class="rejilla" id="listaEspecialidades"></div>
+    </section>
+
+    <section class="bloque" id="ubicaciones">
+        <h2>Ubicaciones</h2>
+        <p class="intro">Nuestras sedes y las especialidades que atiende cada una.</p>
+        <div class="rejilla" id="listaSedes"></div>
+    </section>
+
+    <section class="bloque" id="horarios">
+        <h2>Horarios de atención</h2>
+        <p class="intro">Planifique su visita.</p>
+        <table class="horarios"><thead><tr><th>Servicio</th><th>Horario</th></tr></thead><tbody id="listaHorarios"></tbody></table>
+    </section>
+
+    <footer id="pie"></footer>
 </div>
 
-<div class="caja" id="formularioLogin" style="display:none;">
-    <h2>Iniciar Sesión</h2>
-    <label for="username">Usuario</label>
-    <input type="text" id="username" placeholder="Nombre de usuario">
-    <label for="password">Contraseña</label>
-    <input type="password" id="password" placeholder="Contraseña">
-    <button id="btnLogin" onclick="iniciarSesion()">Iniciar Sesión</button>
-    <div id="mensaje"></div>
-    <a href="#" class="enlace" onclick="mostrarLanding(); return false;">Volver</a>
-    <a href="/registro.html" class="enlace">¿No tienes cuenta? Regístrate</a>
+<!-- ================= Inicio de sesión ================= -->
+<div class="centro" id="formularioLogin">
+    <div class="caja">
+        <h2>Iniciar Sesión</h2>
+        <label for="username">Usuario</label>
+        <input type="text" id="username" placeholder="Nombre de usuario">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" placeholder="Contraseña">
+        <button id="btnLogin" onclick="iniciarSesion()">Iniciar Sesión</button>
+        <div id="mensaje"></div>
+        <a href="#" class="enlace" onclick="mostrarLanding(); return false;">Volver al portal</a>
+        <a href="/registro.html" class="enlace">¿No tienes cuenta? Regístrate</a>
+    </div>
 </div>
 
-<div class="caja" id="panel">
-    <h2>Iniciar Sesión</h2>
-    <p><strong>Bienvenido, <span id="nombreUsuario"></span></strong></p>
-    <p>Rol: <span id="rolUsuario"></span></p>
-    <button onclick="cerrarSesion()">Cerrar Sesión</button>
+<div class="centro" id="panel">
+    <div class="caja">
+        <h2>Iniciar Sesión</h2>
+        <p><strong>Bienvenido, <span id="nombreUsuario"></span></strong></p>
+        <p>Rol: <span id="rolUsuario"></span></p>
+        <button onclick="cerrarSesion()">Cerrar Sesión</button>
+    </div>
 </div>
 
+<!-- ================= Verificar registro (CU-00, paso 4) ================= -->
 <div class="overlay" id="overlayModal">
     <div class="modal">
         <h3>Verificar Registro</h3>
@@ -73,12 +170,62 @@
 </div>
 
 <script>
+    // ---------------------------------------------------------------- información del portal
+    function esc(texto) {
+        const d = document.createElement('div');
+        d.textContent = texto == null ? '' : texto;
+        return d.innerHTML;
+    }
+
+    async function cargarPortal() {
+        try {
+            const r = await fetch('/api/portal');
+            if (!r.ok) throw new Error();
+            const p = await r.json();
+
+            const nombre = p.hospital.nombre;
+            document.title = nombre + ' - Portal';
+            document.getElementById('marcaNombre').textContent = nombre;
+            document.getElementById('heroNombre').textContent = nombre;
+            document.getElementById('heroDescripcion').textContent = p.hospital.descripcion;
+
+            document.getElementById('listaServicios').innerHTML = p.servicios.map(s =>
+                `<div class="tarjeta"><div class="icono">${esc(s.icono)}</div><h3>${esc(s.titulo)}</h3><p>${esc(s.descripcion)}</p></div>`).join('');
+
+            document.getElementById('listaEspecialidades').innerHTML = p.especialidades.length === 0
+                ? '<div class="estado-carga">Próximamente publicaremos nuestras especialidades.</div>'
+                : p.especialidades.map(e =>
+                    `<div class="tarjeta"><h3>${esc(e.nombre)}</h3><p>${esc(e.descripcion || 'Atención médica especializada.')}</p>
+                     <div class="chips">${e.sedes.map(s => `<span class="chip">📍 ${esc(s)}</span>`).join('')}</div></div>`).join('');
+
+            document.getElementById('listaSedes').innerHTML = p.sedes.length === 0
+                ? '<div class="estado-carga">Próximamente publicaremos nuestras ubicaciones.</div>'
+                : p.sedes.map(s =>
+                    `<div class="tarjeta"><div class="icono">📍</div><h3>${esc(s.nombre)}</h3>
+                     ${s.descripcion ? `<p>${esc(s.descripcion)}</p>` : ''}
+                     <div class="dato"><strong>Dirección:</strong> ${esc(s.direccion || 'Consulte en recepción')}</div>
+                     <div class="dato"><strong>Teléfono:</strong> ${esc(s.telefono || 'No disponible')}</div>
+                     ${s.especialidades.length ? `<div class="chips">${s.especialidades.map(e => `<span class="chip">${esc(e)}</span>`).join('')}</div>` : ''}</div>`).join('');
+
+            document.getElementById('listaHorarios').innerHTML = p.horarios.map(h =>
+                `<tr><td>${esc(h.servicio)}</td><td>${esc(h.horario)}</td></tr>`).join('');
+
+            document.getElementById('pie').innerHTML = `© ${new Date().getFullYear()} ${esc(nombre)}` + (p.hospital.telefono ? ` · Teléfono: ${esc(p.hospital.telefono)}` : '');
+        } catch (e) {
+            document.getElementById('listaServicios').innerHTML = '<div class="estado-carga">No se pudo cargar la información del portal. Aun así puede agendar su cita.</div>';
+        }
+    }
+
+    // ---------------------------------------------------------------- verificación de DPI y navegación
     function abrirModal() {
         document.getElementById('overlayModal').style.display = 'flex';
         document.getElementById('dpiModal').value = '';
         document.getElementById('mensajeModal').textContent = '';
+        document.getElementById('btnVerificarDpi').disabled = false;
+        document.getElementById('btnVerificarDpi').textContent = 'Verificar DPI';
         actualizarContador();
     }
+    // FA02: cancelar regresa al paso 2 (página principal)
     function cerrarModal() {
         document.getElementById('overlayModal').style.display = 'none';
     }
@@ -90,10 +237,11 @@
     function mostrarLogin(contexto) {
         contextoLogin = contexto || 'interno';
         document.getElementById('landing').style.display = 'none';
-        document.getElementById('formularioLogin').style.display = 'block';
+        document.getElementById('formularioLogin').style.display = 'flex';
     }
     function mostrarLanding() {
         document.getElementById('formularioLogin').style.display = 'none';
+        document.getElementById('panel').style.display = 'none';
         document.getElementById('landing').style.display = 'block';
     }
 
@@ -225,11 +373,14 @@
     function cerrarSesion() {
         sessionStorage.removeItem('usuarioActual');
         mostrarLanding();
-        document.getElementById('panel').style.display = 'none';
         document.getElementById('username').value = '';
         document.getElementById('password').value = '';
         document.getElementById('mensaje').textContent = '';
     }
+
+    document.getElementById('dpiModal').addEventListener('keydown', e => { if (e.key === 'Enter') verificarDpi(); });
+    document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') iniciarSesion(); });
+    cargarPortal();
 </script>
 </body>
 </html>
