@@ -21,6 +21,10 @@ public class Especialidad {
     @Column(nullable = false)
     private boolean activo = true;
 
+    /** Descripción de la especialidad (obligatoria al crear o editar desde el mantenimiento de catálogos, CU-15). */
+    @Column(length = 500)
+    private String descripcion;
+
     public Especialidad() {}
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -28,4 +32,6 @@ public class Especialidad {
     public void setNombre(String nombre) { this.nombre = nombre; }
     public boolean isActivo() { return activo; }
     public void setActivo(boolean activo) { this.activo = activo; }
+    public String getDescripcion() { return descripcion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
 }

@@ -51,6 +51,9 @@ public class DespachoService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private AuditoriaService auditoriaService;
+
     // ------------------------------------------------------------ búsqueda
 
     /**
@@ -209,6 +212,7 @@ public class DespachoService {
             final String nombreEntregado = entregado.getNombre();
             InventarioMedicamento inv = inventarioRepository
                     .findByMedicamentoIdAndSucursalId(entregado.getId(), sucursal.getId())
+                    .filter(InventarioMedicamento::isActivo)
                     .orElseThrow(() -> new IllegalArgumentException("Sin inventario registrado de " + nombreEntregado + " en la sucursal."));
             if (inv.getStockActual() < cantidad) {
                 throw new IllegalArgumentException("Stock insuficiente de " + entregado.getNombre() + ". Disponible: " + inv.getStockActual() + ".");
@@ -264,6 +268,14 @@ public class DespachoService {
             mov.setReferencia(guardado.getNumeroDespacho());
             mov.setUsuario(farmaceutico);
             movimientoRepository.save(mov);
+
+            // RN-CU15-02 / RNF-017: el despacho de un medicamento controlado queda en la auditoría especial
+            if (med.isControlado()) {
+                auditoriaService.registrar(farmaceutico, "DESPACHO_MEDICAMENTO_CONTROLADO", "Despacho", guardado.getId(),
+                        "Se despachó el medicamento controlado " + med.getNombre() + " (" + d.get("cantidad") + " unidad(es)) al paciente "
+                                + receta.getCita().getPaciente().getNombreCompleto() + ". Receta #" + receta.getId()
+                                + ", " + guardado.getNumeroDespacho() + ".");
+            }
 
             // FA04: stock mínimo alcanzado tras el despacho
             if (med.getStockMinimo() != null && nuevo <= med.getStockMinimo()) {
@@ -344,6 +356,7 @@ public class DespachoService {
             return List.of();
         }
         return inventarioRepository.findBySucursalId(f.getSucursal().getId()).stream()
+                .filter(InventarioMedicamento::isActivo)
                 .filter(i -> i.getMedicamento().getStockMinimo() != null && i.getStockActual() <= i.getMedicamento().getStockMinimo())
                 .map(i -> {
                     Map<String, Object> m = new LinkedHashMap<>();
@@ -425,7 +438,8 @@ public class DespachoService {
     /** Disponibilidad de un medicamento en una sucursal: SIN_INVENTARIO, STOCK_BAJO o DISPONIBLE. */
     private Map<String, Object> disponibilidad(Medicamento med, Sucursal sucursal) {
         Map<String, Object> m = new LinkedHashMap<>();
-        Optional<InventarioMedicamento> inv = inventarioRepository.findByMedicamentoIdAndSucursalId(med.getId(), sucursal.getId());
+        Optional<InventarioMedicamento> inv = inventarioRepository.findByMedicamentoIdAndSucursalId(med.getId(), sucursal.getId())
+                .filter(InventarioMedicamento::isActivo);
         if (inv.isEmpty()) {
             m.put("estadoInventario", "SIN_INVENTARIO");
             m.put("disponible", 0);

@@ -35,6 +35,15 @@ public class Examen {
     @Column(name = "rango_referencia")
     private String rangoReferencia;
 
+    /** Descripción del examen (opcional, CU-15). */
+    @Column(length = 500)
+    private String descripcion;
+
+    /** Laboratorio al que pertenece el examen; se elige en el mantenimiento de catálogos (CU-15). */
+    @ManyToOne
+    @JoinColumn(name = "laboratorio_id")
+    private Laboratorio laboratorio;
+
     public Examen() {}
 
     public Examen(String nombre, BigDecimal precio, String unidad, String rangoReferencia) {
@@ -56,4 +65,8 @@ public class Examen {
     public void setUnidad(String unidad) { this.unidad = unidad; }
     public String getRangoReferencia() { return rangoReferencia; }
     public void setRangoReferencia(String rangoReferencia) { this.rangoReferencia = rangoReferencia; }
+    public String getDescripcion() { return descripcion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+    public Laboratorio getLaboratorio() { return laboratorio; }
+    public void setLaboratorio(Laboratorio laboratorio) { this.laboratorio = laboratorio; }
 }

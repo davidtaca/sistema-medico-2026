@@ -28,6 +28,10 @@ public class InventarioMedicamento {
     @Column(name = "stock_actual", nullable = false)
     private int stockActual;
 
+    /** false = registro dado de baja desde el mantenimiento de catálogos (eliminación lógica, CU-15). */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean activo = true;
+
     @Version
     private Long version;
 
@@ -47,5 +51,7 @@ public class InventarioMedicamento {
     public void setSucursal(Sucursal sucursal) { this.sucursal = sucursal; }
     public int getStockActual() { return stockActual; }
     public void setStockActual(int stockActual) { this.stockActual = stockActual; }
+    public boolean isActivo() { return activo; }
+    public void setActivo(boolean activo) { this.activo = activo; }
     public Long getVersion() { return version; }
 }

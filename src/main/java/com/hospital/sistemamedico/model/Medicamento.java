@@ -31,6 +31,18 @@ public class Medicamento {
     @Column(name = "stock_minimo")
     private Integer stockMinimo;
 
+    /** Descripción del medicamento (obligatoria en el mantenimiento de catálogos, CU-15). */
+    @Column(length = 500)
+    private String descripcion;
+
+    /** Unidad de presentación: tableta, ml, etc. (obligatoria en el mantenimiento de catálogos). */
+    @Column(length = 50)
+    private String unidad;
+
+    /** true si es un medicamento controlado: su despacho queda en la auditoría especial (RNF-017). */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean controlado = false;
+
     public Medicamento() {}
 
     public Medicamento(String nombre, BigDecimal precio, Integer stockMinimo) {
@@ -49,4 +61,10 @@ public class Medicamento {
     public void setPrecio(BigDecimal precio) { this.precio = precio; }
     public Integer getStockMinimo() { return stockMinimo; }
     public void setStockMinimo(Integer stockMinimo) { this.stockMinimo = stockMinimo; }
+    public String getDescripcion() { return descripcion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+    public String getUnidad() { return unidad; }
+    public void setUnidad(String unidad) { this.unidad = unidad; }
+    public boolean isControlado() { return controlado; }
+    public void setControlado(boolean controlado) { this.controlado = controlado; }
 }
