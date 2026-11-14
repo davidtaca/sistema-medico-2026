@@ -163,7 +163,7 @@ public class PagoService {
         pago.setNumeroTransaccion(numeroTransaccion);
         pago.setFechaPago(LocalDateTime.now());
         pago.setFormaPago(formaPago != null && !formaPago.isBlank() ? formaPago.trim().toUpperCase()
-                : (enLinea ? "TARJETA" : metodoPago.name()));
+                : (enLinea ? marcaDeTarjeta(numeroTarjeta) : metodoPago.name()));
         pago.setIdempotencyKey(idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim());
         if (registradoPorId != null) {
             pago.setRegistradoPor(usuarioService.buscarPorId(registradoPorId));
@@ -233,5 +233,17 @@ public class PagoService {
     public Pago buscarPorId(Long id) {
         return pagoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Pago no encontrado."));
+    }
+
+    /** Marca de la tarjeta según su primer dígito: 4 = Visa, 5 o 2 = Mastercard; otra = TARJETA. */
+    private String marcaDeTarjeta(String numeroTarjeta) {
+        String n = numeroTarjeta == null ? "" : numeroTarjeta.replaceAll("[^0-9]", "");
+        if (n.startsWith("4")) {
+            return "VISA";
+        }
+        if (n.startsWith("5") || n.startsWith("2")) {
+            return "MASTERCARD";
+        }
+        return "TARJETA";
     }
 }

@@ -153,10 +153,19 @@
         });
     }
 
+    let mensajeSinEspecialidades = null;
     async function cargarMedicosDeSucursal(sucursalId) {
         const todosMedicos = await fetch('/api/usuarios/rol/MEDICO').then(r => r.json());
         // CU-13: solo se ofrecen las especialidades que el administrador asignó a la sede
-        const asignadas = await fetch(`/api/sede-especialidades/sucursal/${sucursalId}`).then(r => r.json());
+        const respuestaSede = await fetch(`/api/sede-especialidades/sucursal/${sucursalId}`);
+        const asignadas = await respuestaSede.json();
+        if (!respuestaSede.ok) {
+            // CU-03 FA01: el mensaje viene del servidor
+            medicos = [];
+            mensajeSinEspecialidades = asignadas.error;
+            return;
+        }
+        mensajeSinEspecialidades = null;
         const idsAsignadas = new Set(asignadas.map(e => e.id));
         medicos = todosMedicos.filter(m => m.sucursal && m.sucursal.id == sucursalId
             && m.especialidad && idsAsignadas.has(m.especialidad.id));
@@ -204,7 +213,8 @@
                 await cargarMedicosDeSucursal(sucursalId);
                 if (medicos.length === 0) {
                     const nombreSucursal = sucursales.find(s => s.id == sucursalId).nombre;
-                    mensaje.textContent = `No hay especialidades disponibles para la sucursal ${nombreSucursal}. Seleccione otra sucursal.`;
+                    mensaje.textContent = mensajeSinEspecialidades
+                        || `No hay especialidades disponibles para la sucursal ${nombreSucursal}. Seleccione otra sucursal.`;
                     mensaje.className = 'error';
                     return;
                 }

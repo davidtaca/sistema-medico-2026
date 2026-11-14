@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 24px 16px; color: #2d3748; }
+        .contenedor { max-width: 1100px; margin: 0 auto; }
+        h1 { color: #2b6cb0; margin: 0 0 4px; font-size: 24px; }
+        .sub { color: #718096; font-size: 13px; margin-bottom: 18px; }
+        .barra { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; font-size: 13px; }
+        .barra > button { background: #2b6cb0; color: white; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .barra button:hover { background: #2c5282; }
+        .barra a { color: #2b6cb0; text-decoration: none; margin-left: auto; }
+        .barra select { padding: 6px; border-radius: 6px; border: 1px solid #cbd5e0; }
+        .pestanas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .pestana { background: white; color: #2b6cb0; border: 2px solid #bee3f8; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .pestana:hover { background: #ebf8ff; }
+        .pestana.activa { background: #2b6cb0; color: white; border-color: #2b6cb0; }
+        .seccion { display: none; }
+        .seccion.activa { display: block; }
+        .panel { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 18px; }
+        .panel h2 { font-size: 16px; margin: 0 0 4px; color: #2d3748; }
+        .panel .ayuda { font-size: 12px; color: #718096; margin: 0 0 14px; }
+        .vacio { color: #a0aec0; text-align: center; padding: 30px 0; font-size: 14px; }
+        .error { color: #c53030; text-align: center; padding: 20px 0; }
+
+        /* barras horizontales */
+        .fila { margin-bottom: 10px; }
+        .fila .etiqueta { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; gap: 8px; }
+        .fila .etiqueta span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fila .etiqueta strong { color: #2b6cb0; }
+        .pista { background: #edf2f7; border-radius: 6px; height: 18px; overflow: hidden; }
+        .relleno { height: 100%; border-radius: 6px; transition: width .5s; }
+
+        .dias { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+        .dia { background: #ebf8ff; color: #2c5282; border-radius: 12px; padding: 3px 10px; font-size: 12px; }
+
+        /* dona de métodos de pago */
+        .dona-caja { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; justify-content: center; }
+        .dona { width: 170px; height: 170px; border-radius: 50%; position: relative; flex: none; }
+        .dona::after { content: attr(data-total); position: absolute; inset: 32px; background: white; border-radius: 50%;
+                       display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; color: #2d3748; }
+        .leyenda { font-size: 13px; }
+        .leyenda div { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+        .punto { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+        .leyenda small { color: #718096; }
+    </style>
+</head>
+<body>
+<div class="contenedor">
+    <h1>Dashboard</h1>
+    <div class="sub" id="actualizado">Cargando...</div>
+
+    <div class="barra">
+        <button onclick="cargar()">Actualizar ahora</button>
+        <label id="opcDias">Días de mayor demanda:
+            <select id="selDias" onchange="cargar()">
+                <option value="1">1</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10</option>
+            </select>
+        </label>
+        <label id="opcMeds">Medicamentos a mostrar:
+            <select id="selMeds" onchange="cargar()">
+                <option value="5">5</option><option value="10" selected>10</option><option value="20">20</option>
+            </select>
+        </label>
+        <span>Se actualiza sola cada 30 segundos.</span>
+        <a href="/menu.html">Volver al menú</a>
+    </div>
+
+    <div class="pestanas">
+        <button class="pestana activa" id="tab-medicos" onclick="mostrar('medicos')">👨‍⚕️ Médicos con más consultas</button>
+        <button class="pestana" id="tab-meds" onclick="mostrar('meds')">💊 Medicamentos más despachados</button>
+        <button class="pestana" id="tab-pagos" onclick="mostrar('pagos')">💳 Métodos de pago</button>
+    </div>
+
+    <div>
+        <div class="panel seccion activa" id="sec-medicos">
+            <h2>Médicos con más consultas en los días de mayor demanda</h2>
+            <p class="ayuda">Se toman los días con más consultas y se cuenta cuántas atendió cada médico en esos días.</p>
+            <div class="dias" id="dias"></div>
+            <div id="graficaMedicos"></div>
+        </div>
+
+        <div class="panel seccion" id="sec-meds">
+            <h2>Medicamentos más despachados en farmacia</h2>
+            <p class="ayuda">Unidades entregadas en despachos registrados.</p>
+            <div id="graficaMeds"></div>
+        </div>
+
+        <div class="panel seccion" id="sec-pagos">
+            <h2>Métodos de pago</h2>
+            <p class="ayuda">Cantidad de pagos por forma de pago (citas y laboratorio).</p>
+            <div id="graficaPagos"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const admin = JSON.parse(sessionStorage.getItem('usuarioActual') || 'null');
+    if (!admin || admin.rol !== 'ADMINISTRADOR') {
+        alert('Debe iniciar sesión como administrador.');
+        window.location.href = '/index.html';
+    }
+
+    const $ = id => document.getElementById(id);
+    function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+    const COLORES = { EFECTIVO: '#38a169', VISA: '#2b6cb0', MASTERCARD: '#dd6b20', DEBITO: '#805ad5', TARJETA: '#a0aec0' };
+
+    // Barras horizontales: cada fila es { etiqueta, valor }
+    function barras(filas, color) {
+        if (filas.length === 0) return '<div class="vacio">Todavía no hay datos.</div>';
+        const max = Math.max(...filas.map(f => f.valor), 1);
+        return filas.map(f => `
+            <div class="fila">
+                <div class="etiqueta"><span title="${esc(f.etiqueta)}">${esc(f.etiqueta)}</span><strong>${f.valor}</strong></div>
+                <div class="pista"><div class="relleno" style="width:${(f.valor / max) * 100}%; background:${color}"></div></div>
+            </div>`).join('');
+    }
+
+    // Dona hecha con conic-gradient: cada porción es proporcional a la cantidad de pagos
+    function dona(filas) {
+        const total = filas.reduce((s, f) => s + f.pagos, 0);
+        if (total === 0) return '<div class="vacio">Todavía no hay pagos registrados.</div>';
+        let acumulado = 0;
+        const tramos = filas.filter(f => f.pagos > 0).map(f => {
+            const ini = (acumulado / total) * 100;
+            acumulado += f.pagos;
+            return `${COLORES[f.forma] || '#cbd5e0'} ${ini}% ${(acumulado / total) * 100}%`;
+        });
+        const leyenda = filas.map(f => `
+            <div><span class="punto" style="background:${COLORES[f.forma] || '#cbd5e0'}"></span>
+                <span><strong>${f.pagos}</strong> ${esc(f.etiqueta)} <small>(${f.pacientes} paciente(s))</small></span></div>`).join('');
+        return `<div class="dona-caja">
+            <div class="dona" data-total="${total}" style="background: conic-gradient(${tramos.join(', ')})"></div>
+            <div class="leyenda">${leyenda}</div></div>`;
+    }
+
+    async function cargar() {
+        try {
+            const url = `/api/dashboard?adminId=${admin.id}&dias=${$('selDias').value}&medicamentos=${$('selMeds').value}`;
+            const r = await fetch(url);
+            const d = await r.json();
+            if (!r.ok) { $('actualizado').textContent = ''; $('graficaMedicos').innerHTML = `<div class="error">${esc(d.error)}</div>`; return; }
+
+            const g1 = d.medicosDiasDemanda;
+            $('dias').innerHTML = g1.diasDeMayorDemanda.length === 0 ? ''
+                : g1.diasDeMayorDemanda.map(x => `<span class="dia">${new Date(x.fecha + 'T00:00').toLocaleDateString('es-GT', { dateStyle: 'medium' })}: ${x.consultas} consulta(s)</span>`).join('');
+            $('graficaMedicos').innerHTML = barras(g1.medicos.map(m => ({
+                etiqueta: m.medico + (m.especialidad ? ' — ' + m.especialidad : ''), valor: m.consultas })), '#2b6cb0');
+
+            $('graficaMeds').innerHTML = barras(d.medicamentosDespachados.map(m => ({ etiqueta: m.medicamento, valor: m.unidades })), '#38a169');
+            $('graficaPagos').innerHTML = dona(d.metodosDePago);
+            $('actualizado').textContent = 'Datos de la base de datos. Última actualización: ' + new Date(d.generado).toLocaleTimeString('es-GT');
+        } catch (e) {
+            $('actualizado').textContent = 'No se pudo conectar con el servidor.';
+        }
+    }
+
+    // Una sola gráfica a la vez: se recuerda la última que se miró
+    function mostrar(nombre) {
+        ['medicos', 'meds', 'pagos'].forEach(n => {
+            $('sec-' + n).classList.toggle('activa', n === nombre);
+            $('tab-' + n).classList.toggle('activa', n === nombre);
+        });
+        $('opcDias').style.display = nombre === 'medicos' ? '' : 'none';
+        $('opcMeds').style.display = nombre === 'meds' ? '' : 'none';
+        try { sessionStorage.setItem('dashboardPestana', nombre); } catch (e) {}
+    }
+
+    let pestanaInicial = 'medicos';
+    try { pestanaInicial = sessionStorage.getItem('dashboardPestana') || 'medicos'; } catch (e) {}
+    mostrar(['medicos', 'meds', 'pagos'].includes(pestanaInicial) ? pestanaInicial : 'medicos');
+
+    cargar();
+    setInterval(cargar, 30000);
+</script>
+<script src="/sesion.js"></script>
+</body>
+</html>

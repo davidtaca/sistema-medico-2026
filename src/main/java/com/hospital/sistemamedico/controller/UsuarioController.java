@@ -99,9 +99,16 @@ public class UsuarioController {
         }
     }
     @GetMapping("/buscar")
-    public List<Usuario> buscarPorCampo(@RequestParam(required = false) String campo,
-                                        @RequestParam(required = false) String valor) {
-        return usuarioService.buscarPorCampo(campo, valor);
+    public ResponseEntity<?> buscarPorCampo(@RequestParam(required = false) String campo,
+                                            @RequestParam(required = false) String valor) {
+        // FA03 (CU-01): la validación y el mensaje "No se encontraron datos usuarios." salen del servidor
+        try {
+            return ResponseEntity.ok(usuarioService.buscarConValidacion(campo, valor));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (java.util.NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")

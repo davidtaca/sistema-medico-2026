@@ -72,6 +72,17 @@ public class Pago {
     public void setFormaPago(String formaPago) { this.formaPago = formaPago; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    // Solo para la respuesta del cobro en efectivo (CU-06): no se guardan en la base de datos
+    @Transient
+    private BigDecimal montoRecibido;
+    @Transient
+    private BigDecimal cambio;
+
+    public BigDecimal getMontoRecibido() { return montoRecibido; }
+    public void setMontoRecibido(BigDecimal montoRecibido) { this.montoRecibido = montoRecibido; }
+    public BigDecimal getCambio() { return cambio; }
+    public void setCambio(BigDecimal cambio) { this.cambio = cambio; }
+
     public Usuario getRegistradoPor() { return registradoPor; }
     public void setRegistradoPor(Usuario registradoPor) { this.registradoPor = registradoPor; }
     public LocalDateTime getFechaPago() { return fechaPago; }

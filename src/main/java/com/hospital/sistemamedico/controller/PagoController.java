@@ -32,6 +32,19 @@ public class PagoController {
                                            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         try {
             Long citaId = Long.valueOf(datos.get("citaId").toString());
+            BigDecimal montoCobrar = new BigDecimal(datos.get("monto").toString());
+
+            // CU-06 paso 7: en efectivo el servidor valida el monto recibido y calcula el cambio
+            BigDecimal montoRecibido = null;
+            BigDecimal cambio = null;
+            if ("EFECTIVO".equals(String.valueOf(datos.get("formaPago"))) || datos.get("montoRecibido") != null) {
+                montoRecibido = datos.get("montoRecibido") == null ? BigDecimal.ZERO : new BigDecimal(datos.get("montoRecibido").toString());
+                if (montoRecibido.compareTo(montoCobrar) < 0) {
+                    throw new IllegalArgumentException("El monto recibido (Q" + montoRecibido.setScale(2, java.math.RoundingMode.HALF_UP)
+                            + ") es menor al monto a cobrar (Q" + montoCobrar.setScale(2, java.math.RoundingMode.HALF_UP) + ")");
+                }
+                cambio = montoRecibido.subtract(montoCobrar);
+            }
             boolean yaExistia = idempotencyKey != null && !idempotencyKey.isBlank()
                     && pagoYaRegistrado(idempotencyKey);
 
@@ -49,6 +62,8 @@ public class PagoController {
                     datos.get("cajeroId") != null ? Long.valueOf(datos.get("cajeroId").toString()) : null
             );
 
+            pago.setMontoRecibido(montoRecibido);
+            pago.setCambio(cambio);
             if (yaExistia) {
                 return ResponseEntity.ok(pago);
             }

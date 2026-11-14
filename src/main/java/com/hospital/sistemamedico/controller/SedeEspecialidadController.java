@@ -76,8 +76,13 @@ public class SedeEspecialidadController {
 
     /** Especialidades disponibles en una sede, para el portal de citas (CU-03). */
     @GetMapping("/api/sede-especialidades/sucursal/{sucursalId}")
-    public Object especialidadesDeSucursal(@PathVariable Long sucursalId) {
-        return service.especialidadesDeSucursal(sucursalId);
+    public ResponseEntity<?> especialidadesDeSucursal(@PathVariable Long sucursalId) {
+        // CU-03 FA01: la sede sin especialidades configuradas se rechaza con el mensaje del documento
+        try {
+            return ResponseEntity.ok(service.especialidadesDeSucursalValidadas(sucursalId));
+        } catch (java.util.NoSuchElementException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     /** Bitácora de auditoría (solo lectura). */

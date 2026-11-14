@@ -81,6 +81,20 @@ class UsuarioServiceTest {
     }
 
     @Test
+    void losCamposOpcionalesVaciosSeGuardanComoNulos() {
+        Usuario u = interno(Rol.LABORATORISTA);
+        u.setDpi("");
+        u.setTelefono("");
+        u.setNit(" ");
+        u.setNumeroSeguro("");
+        Usuario creado = servicio.registrarUsuario(u);
+        assertNull(creado.getDpi());
+        assertNull(creado.getTelefono());
+        assertNull(creado.getNit());
+        assertNull(creado.getNumeroSeguro());
+    }
+
+    @Test
     void elRolEsObligatorio() {
         Usuario u = interno(Rol.CAJERO);
         u.setRol(null);

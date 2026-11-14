@@ -49,6 +49,13 @@ public class UsuarioService {
      *         o si el username/correo/DPI ya existen
      */
     public Usuario registrarUsuario(Usuario usuario) {
+        // Los campos opcionales que llegan vacíos desde el formulario se guardan como nulos
+        // (si no, dos usuarios con DPI "" chocarían con el índice único)
+        usuario.setDpi(vacioANulo(usuario.getDpi()));
+        usuario.setTelefono(vacioANulo(usuario.getTelefono()));
+        usuario.setNit(vacioANulo(usuario.getNit()));
+        usuario.setNumeroSeguro(vacioANulo(usuario.getNumeroSeguro()));
+
         // RN-CU01-04: Nombre
         if (usuario.getNombreCompleto() == null || usuario.getNombreCompleto().isBlank()) {
             throw new IllegalArgumentException("El campo Nombre es obligatorio.");
@@ -316,6 +323,19 @@ public class UsuarioService {
      * @param valor texto o número a buscar dentro de ese campo
      * @return lista de usuarios que coinciden con el criterio (puede estar vacía)
      */
+    public List<Usuario> buscarConValidacion(String campo, String valor) {
+        if (valor != null && valor.trim().length() > 25) {
+            throw new IllegalArgumentException("El campo de búsqueda no puede exceder los 25 caracteres.");
+        }
+        List<Usuario> resultado = buscarPorCampo(campo, valor);
+        boolean hayFiltro = campo != null && valor != null && !valor.isBlank();
+        if (hayFiltro && resultado.isEmpty()) {
+            // FA03: la búsqueda no encontró información
+            throw new java.util.NoSuchElementException("No se encontraron datos usuarios.");
+        }
+        return resultado;
+    }
+
     public List<Usuario> buscarPorCampo(String campo, String valor) {
         if (campo == null || valor == null || valor.isBlank()) {
             return listarTodos();
@@ -497,5 +517,9 @@ public class UsuarioService {
         Usuario usuario = buscarPorId(id);
         usuario.setActivo(false);
         usuarioRepository.save(usuario);
+    }
+
+    private String vacioANulo(String valor) {
+        return valor == null || valor.isBlank() ? null : valor.trim();
     }
 }

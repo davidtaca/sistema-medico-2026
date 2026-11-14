@@ -144,7 +144,18 @@
         if (!valor) {
             usuariosFiltrados = todosLosUsuarios;
         } else {
-            usuariosFiltrados = await fetch(`/api/usuarios/buscar?campo=${campo}&valor=${encodeURIComponent(valor)}`).then(r => r.json());
+            const respuesta = await fetch(`/api/usuarios/buscar?campo=${campo}&valor=${encodeURIComponent(valor)}`);
+            const datos = await respuesta.json();
+            if (respuesta.status === 404) {
+                // FA03: el mensaje viene del servidor
+                usuariosFiltrados = [];
+                document.getElementById('vacio').textContent = datos.error;
+            } else if (!respuesta.ok) {
+                avisoLista(datos.error, 'error');
+                return;
+            } else {
+                usuariosFiltrados = datos;
+            }
         }
         paginaActual = 1;
         renderizarPagina();

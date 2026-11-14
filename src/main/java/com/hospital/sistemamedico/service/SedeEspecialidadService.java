@@ -137,6 +137,22 @@ public class SedeEspecialidadService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Igual que {@link #especialidadesDeSucursal(Long)} pero rechaza la sede sin especialidades
+     * configuradas (CU-03, FA01).
+     *
+     * @throws java.util.NoSuchElementException si la sede no tiene especialidades disponibles
+     */
+    public List<Especialidad> especialidadesDeSucursalValidadas(Long sucursalId) {
+        List<Especialidad> lista = especialidadesDeSucursal(sucursalId);
+        if (lista.isEmpty()) {
+            String nombre = sucursalRepository.findById(sucursalId).map(s -> s.getNombre()).orElse("seleccionada");
+            throw new java.util.NoSuchElementException(
+                    "No hay especialidades disponibles para la sucursal " + nombre + ". Seleccione otra sucursal.");
+        }
+        return lista;
+    }
+
     /** true si la especialidad está habilitada en la sede. */
     public boolean estaDisponible(Long sucursalId, Long especialidadId) {
         return repository.existsBySucursalIdAndEspecialidadIdAndActivoTrue(sucursalId, especialidadId);

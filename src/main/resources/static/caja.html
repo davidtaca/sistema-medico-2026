@@ -231,7 +231,8 @@
                     metodoPago: metodoPagoBackend,
                     formaPago: metodo,
                     cajeroId: usuario.id,
-                    numeroTransaccion: numeroTransaccion
+                    numeroTransaccion: numeroTransaccion,
+                    montoRecibido: metodo === 'EFECTIVO' ? parseFloat(document.getElementById('montoRecibido').value) : null
                 })
             });
 
@@ -243,6 +244,10 @@
                 return;
             }
 
+            // CU-06 paso 7: el cambio lo calcula el servidor
+            if (resultado.cambio !== null && resultado.cambio !== undefined) {
+                montoRecibidoTxt = `Monto recibido: Q${Number(resultado.montoRecibido).toFixed(2)}. Cambio a devolver: Q${Number(resultado.cambio).toFixed(2)}.`;
+            }
             mensaje.textContent = `¡Pago registrado exitosamente! Paciente: ${nombrePaciente}. La cita ha sido actualizada a estado Confirmada.`;
             mensaje.className = 'exito';
 
